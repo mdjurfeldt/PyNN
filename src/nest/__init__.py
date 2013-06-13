@@ -147,6 +147,65 @@ initialize = common.initialize
 get_current_time, get_time_step, get_min_delay, get_max_delay, \
             num_processes, rank = common.build_state_queries(simulator)
 
+# ==============================================================================
+#   MUSIC support
+# ==============================================================================
+
+music_support = True
+
+def music_export(population, port_name):
+    """
+    """
+    music_proxy = nest.Create("music_event_out_proxy",
+                              params={"port_name": port_name})
+
+    # We can't use PyNEST's ConvergentConnect here, as it does not
+    # support a params dict for the connections at the moment. Once
+    # that variant exists, we don't have to iterate here ourselves
+    # anymore
+    channel = 0
+    for pre in population:
+        conn_params = {"music_channel": channel}
+        nest.Connect([pre], music_proxy, conn_params)
+        channel += 1
+
+
+class MusicProjection(Projection):
+    """
+    A container for all the connections of a given type (same synapse type and
+    plasticity mechanisms) between two populations, together with methods to set
+    parameters of those connections, including of plasticity mechanisms.
+    """
+    def __init__(self, port, width, postsynaptic_population,
+                 method, source=None,
+                 target=None, synapse_dynamics=None, label=None, rng=None):
+        """
+        port - MUSIC event input port name
+        width - port width (= size of remote population)
+        postsynaptic_population - Population object.
+
+        source - string specifying which attribute of the presynaptic cell
+                 signals action potentials
+
+        target - string specifying which synapse on the postsynaptic cell to
+                 connect to
+
+        If source and/or target are not given, default values are used.
+
+        method - a Connector object, encapsulating the algorithm to use for
+                 connecting the neurons.
+
+        synapse_dynamics - a `SynapseDynamics` object specifying which
+        synaptic plasticity mechanisms to use.
+
+        rng - specify an RNG object to be used by the Connector.
+        """
+        params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
+        pre_pop = Population(width, "music_event_in_proxy", cellparams=params)
+        Projection.__init__ (self, pre_pop, postsynaptic_population,
+                             method, source=source,
+                             target=target, synapse_dynamics=synapse_dynamics,
+                             label=label, rng=rng)
 
 
 # ==============================================================================
