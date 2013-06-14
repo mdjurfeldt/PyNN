@@ -8,7 +8,8 @@ at once, provided those simulators support the MUSIC communication interface.
 """
 
 import music
-#import warnings
+from pyNN.space import Space
+import warnings
 
 
 # This is the map between simulator(proxies) and music Application instances
@@ -136,20 +137,20 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
     """
     #queues projections and port configs to be evaluated in music.run
     
-    def __init__(self, presynaptic_neurons, postsynaptic_neurons, method,
-                 source=None, target=None, synapse_dynamics=None,
-                 label=None, rng=None):
+    def __init__(self, presynaptic_neurons, postsynaptic_neurons, connector,
+                 synapse_type=None, source=None, receptor_type=None,
+                 space=Space(), label=None):
         global projection_number
 
         # record parameters
-        self.presynaptic_neurons=presynaptic_neurons
-        self.postsynaptic_neurons=postsynaptic_neurons
-        self.method=method
-        self.source=source
-        self.target=target
-        self.synapse_dynamics=synapse_dynamics
+        self.presynaptic_neurons = presynaptic_neurons
+        self.postsynaptic_neurons = postsynaptic_neurons
+        self.connector = connector
+        self.source = source
+        self.receptor_type = receptor_type
+        self.synapse_type = synapse_type
         self.label=label
-        self.rng=rng
+        self.space = space
         
         # number unique within local process and consistent with
         # corresponding projection in all other ranks (even those not
@@ -194,10 +195,10 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
         else:
             self.projection = this_simulator.MusicProjection \
                         (self.input_port, self.width,
-                         self.postsynaptic_neurons, self.method,
-                         source=self.source, target=self.target,
-                         synapse_dynamics=self.synapse_dynamics,
-                         label=self.label, rng=self.rng)
+                         self.postsynaptic_neurons, self.connector,
+                         synapse_type=self.synapse_type,
+                         source=self.source, receptor_type=self.receptor_type,
+                         space=self.space, label=self.label)
 
 
     def __getattr__ (self, name):
@@ -258,7 +259,7 @@ class ProxySimulator(object):
     def __getattr__ (self, name):
         # Return None if we don't know what the remote simulator would
         # have returned.  For now, warn about it:
-        #warnings.warn ("returning ProxyMethod for " + name)
+        warnings.warn ("returning ProxyMethod for " + name)
         return ProxyMethod()
     
     # this may be of use outside of pyNN.music, but for simplicity I suggest
@@ -268,12 +269,13 @@ class ProxySimulator(object):
               max_delay=DEFAULT_MAX_DELAY, **extra_params):
         pass
     
-    def Population(self, size, cellclass, cellparams=None, structure=None, label=None):
+    def Population(self, size, cellclass, cellparams=None, structure=None,
+                   initial_values={}, label=None):
         return ProxyPopulation(self, size)
     
-    def Projection(self, presynaptic_neurons, postsynaptic_neurons, method,
-                   source=None, target=None, synapse_dynamics=None,
-                   label=None, rng=None):
+    def Projection(self, presynaptic_neurons, postsynaptic_neurons, connector,
+                   synapse_type=None, source=None, receptor_type=None,
+                   space=Space(), label=None):
         return ProxyProjection()
 
     def AllToAllConnector (self):
@@ -338,7 +340,7 @@ class ProxyMethod(object):
         #warnings.warn ("returning ProxyMethod for " + name)
         return ProxyMethod()
 
-    def __call__ (self, *args):
+    def __call__ (self, *args, **kwargs):
         return ProxyMethod()
 
 

@@ -177,35 +177,21 @@ class MusicProjection(Projection):
     parameters of those connections, including of plasticity mechanisms.
     """
     def __init__(self, port, width, postsynaptic_population,
-                 method, source=None,
-                 target=None, synapse_dynamics=None, label=None, rng=None):
+                 connector, synapse_type=None, source=None,
+                 receptor_type=None, space=Space(), label=None):
         """
         port - MUSIC event input port name
         width - port width (= size of remote population)
         postsynaptic_population - Population object.
 
-        source - string specifying which attribute of the presynaptic cell
-                 signals action potentials
-
-        target - string specifying which synapse on the postsynaptic cell to
-                 connect to
-
-        If source and/or target are not given, default values are used.
-
-        method - a Connector object, encapsulating the algorithm to use for
-                 connecting the neurons.
-
-        synapse_dynamics - a `SynapseDynamics` object specifying which
-        synaptic plasticity mechanisms to use.
-
-        rng - specify an RNG object to be used by the Connector.
+        All other arguments are as for the standard Projection class.
         """
         params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
         pre_pop = Population(width, "music_event_in_proxy", cellparams=params)
-        Projection.__init__ (self, pre_pop, postsynaptic_population,
-                             method, source=source,
-                             target=target, synapse_dynamics=synapse_dynamics,
-                             label=label, rng=rng)
+        Projection.__init__(self, pre_pop, postsynaptic_population,
+                            connector, synapse_type, source=source,
+                            receptor_type=receptor_type, space=space,
+                            label=label)
 
 
 # ==============================================================================
