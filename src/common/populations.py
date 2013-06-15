@@ -604,7 +604,7 @@ class Population(BasePopulation):
         if isinstance(cellclass, BaseCellType):
             self.celltype = cellclass
             assert cellparams is None   # cellparams being retained for backwards compatibility, but use is deprecated
-        elif issubclass(cellclass, BaseCellType):
+        elif isinstance(cellclass, type) and issubclass(cellclass, BaseCellType):
             self.celltype = cellclass(**cellparams)
             # emit deprecation warning
         else:

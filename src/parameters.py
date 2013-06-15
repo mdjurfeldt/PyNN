@@ -42,6 +42,7 @@ class LazyArray(larray):
     # most of the implementation moved to external lazyarray package
     # the plan is ultimately to move everything to lazyarray
 
+    # note that native models might well have strings as valid parameter values, so should extend lazyarray to handle this
     def __init__(self, value, shape=None, dtype=None):
         if isinstance(value, basestring):
             errmsg = "Value should be a string expressing a function of d. "
@@ -253,7 +254,9 @@ class ParameterSpace(object):
                 try:
                     self._parameters[name] = LazyArray(value, shape=self._shape,
                                                        dtype=expected_dtype)
-                except (TypeError, errors.InvalidParameterValueError):
+                except errors.InvalidParameterValueError:
+                    raise
+                except TypeError:
                     raise errors.InvalidParameterValueError("For parameter %s expected %s, got %s" % (name, type(value), expected_dtype))
                 except ValueError as err:
                     raise errors.InvalidDimensionsError(err) # maybe put the more specific error classes into lazyarray

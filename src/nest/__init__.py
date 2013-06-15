@@ -37,6 +37,7 @@ from pyNN.nest.standardmodels.electrodes import *
 from pyNN.nest.recording import *
 from pyNN.random import NumpyRNG
 from pyNN.space import Space
+from pyNN.models import BaseCellType
 from pyNN.standardmodels import StandardCellType
 from pyNN.nest.populations import Population, PopulationView, Assembly
 from pyNN.nest.projections import Projection
@@ -170,6 +171,25 @@ def music_export(population, port_name):
         channel += 1
 
 
+class MusicProxyCellType(BaseCellType):
+    nest_name = {"on_grid": "music_event_in_proxy",
+                 "off_grid": "music_event_in_proxy"}
+    
+    def __init__(self, parameters):
+        self.parameters = parameters
+
+
+class MusicPopulation(Population):
+    
+    def _create_cells(self):
+        nest_model = self.celltype.nest_name[simulator.state.spike_precision]
+        params = self.celltype.parameters
+        self.all_cells = nest.Create(nest_model, self.size, params=params)
+        self._mask_local = numpy.array(nest.GetStatus(self.all_cells, 'local'))
+        self.all_cells = numpy.array([simulator.ID(gid) for gid in self.all_cells], simulator.ID)
+        for gid in self.all_cells:
+            gid.parent = self
+
 class MusicProjection(Projection):
     """
     A container for all the connections of a given type (same synapse type and
@@ -187,7 +207,7 @@ class MusicProjection(Projection):
         All other arguments are as for the standard Projection class.
         """
         params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
-        pre_pop = Population(width, "music_event_in_proxy", cellparams=params)
+        pre_pop = MusicPopulation(width, MusicProxyCellType(params))
         Projection.__init__(self, pre_pop, postsynaptic_population,
                             connector, synapse_type, source=source,
                             receptor_type=receptor_type, space=space,
