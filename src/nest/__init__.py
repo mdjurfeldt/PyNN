@@ -22,8 +22,8 @@ try:
 except NESTError:
     raise Exception("NEST built without NumPy support. Try rebuilding NEST after installing NumPy.")
 
-if recording.MPI and (nest.Rank() != recording.mpi_comm.rank):
-    raise Exception("MPI not working properly. Please make sure you import pyNN.nest before pyNN.random.")
+#if recording.MPI and (nest.Rank() != recording.mpi_comm.rank):
+#    raise Exception("MPI not working properly. Please make sure you import pyNN.nest before pyNN.random.")
 
 import shutil
 import logging
@@ -40,9 +40,7 @@ from pyNN.space import Space
 from pyNN.standardmodels import StandardCellType
 from pyNN.nest.populations import Population, PopulationView, Assembly
 from pyNN.nest.projections import Projection
-
 from . import music
-
 
 logger = logging.getLogger("PyNN")
 
