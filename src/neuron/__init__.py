@@ -14,11 +14,15 @@ __version__ = "$Rev: $"
 
 from itertools import repeat
 import sys, os
-import music
-if music.predictRank() >= 0:
-    # launched by MPI
-    os.environ['NEURON_INIT_MPI'] = '1'
-    music.supersedeArgv(['music'] + sys.argv)
+try:
+    import music
+except ImportError:
+    pass
+else:
+    if music.predictRank() >= 0:
+        # launched by MPI
+        os.environ['NEURON_INIT_MPI'] = '1'
+        music.supersedeArgv(['music'] + sys.argv)
 
 from pyNN.random import *
 from pyNN import common, core, space, errors, __doc__
