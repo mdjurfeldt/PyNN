@@ -175,7 +175,7 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
                 return
             
         # Check that this_simulator supports music
-        if not this_simulator.music_support:
+        if not this_simulator.music.music_support:
             raise RuntimeError, 'Either pyNN.' + this_backend + """ doesn\'t yet support MUSIC
               or the simulator isn\'t installed with an enabled MUSIC interface"""
             
@@ -189,11 +189,11 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
         if isinstance(self.postsynaptic_neurons, ProxyPopulation):
             # Make backend create an EventOutputPort and map
             # presynaptic_neurons to that port.
-            this_simulator.music_export (self.presynaptic_neurons,
+            this_simulator.music.music_export (self.presynaptic_neurons,
                                          self.output_port)
             self.projection = ProxyProjection()
         else:
-            self.projection = this_simulator.MusicProjection \
+            self.projection = this_simulator.music.MusicProjection \
                         (self.input_port, self.width,
                          self.postsynaptic_neurons, self.connector,
                          synapse_type=self.synapse_type,
