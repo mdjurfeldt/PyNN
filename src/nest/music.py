@@ -22,7 +22,7 @@ def music_export(population, port_name):
     # that variant exists, we don't have to iterate here ourselves
     # anymore
     channel = 0
-    for pre in population:
+    for pre in population.all():
         conn_params = {"music_channel": channel}
         nest.Connect([pre], music_proxy, conn_params)
         channel += 1
@@ -46,6 +46,7 @@ class MusicPopulation(Population):
         self.all_cells = numpy.array([simulator.ID(gid) for gid in self.all_cells], simulator.ID)
         for gid in self.all_cells:
             gid.parent = self
+
 
 class MusicProjection(Projection):
     """

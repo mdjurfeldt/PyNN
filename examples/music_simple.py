@@ -9,9 +9,9 @@ March 2012
 
 import numpy
 from pyNN import music
-from pyNN.utility import get_script_args
 
-sim1,sim2 = music.setup(music.Config("nest", 1), music.Config("neuron", 1))
+sim1, sim2 = music.setup(music.Config("nest", 1), music.Config("neuron", 1))
+
 
 tstop = 1000.0
 rate = 100.0

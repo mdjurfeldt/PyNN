@@ -85,7 +85,7 @@ def setup(*configurations):
                 this_backend = config.name
                 simulator.name = this_backend
             else:
-                simulator = ProxySimulator()
+                simulator = ProxySimulator(config.name)
         else:
             # This seems to be an external application
             simulator = ExternalApplication ()
@@ -256,11 +256,18 @@ class ProxySimulator(object):
     A proxy for a real simulator backend, which has the same API but doesn't
     actually run simulations.
     """
+    
+    def __init__(self, name):
+        self.__name__ = name
+    
     def __getattr__ (self, name):
         # Return None if we don't know what the remote simulator would
         # have returned.  For now, warn about it:
-        warnings.warn ("returning ProxyMethod for " + name)
-        return ProxyMethod()
+        #warnings.warn ("returning ProxyMethod for " + name)
+        try:
+            return self.__getattribute__(name)
+        except AttributeError:
+            return ProxyMethod()
     
     # this may be of use outside of pyNN.music, but for simplicity I suggest
     # we develop it here for now and then think about moving/generalizing it
@@ -278,7 +285,7 @@ class ProxySimulator(object):
                    space=Space(), label=None):
         return ProxyProjection()
 
-    def AllToAllConnector (self):
+    def AllToAllConnector (self, allow_self_connections=True):
         return None
         
     def DistanceDependentProbabilityConnector(self, d_expression,
@@ -293,6 +300,10 @@ class ProxySimulator(object):
 
     def end(self):
         pass
+
+
+def is_proxy(sim):
+    return isinstance(sim, ProxySimulator)
 
 
 class ProxyPopulation(object):
@@ -310,6 +321,10 @@ class ProxyPopulation(object):
         # have returned.  For now, warn about it:
         #warnings.warn ("returning ProxyMethod for " + name)
         return ProxyMethod()
+
+    def __getitem__(self, index):
+        return ProxyMethod()
+
 
 def sim_from_pop(population):
     if isinstance(population, ProxyPopulation):

@@ -28,7 +28,7 @@ def music_export(population, port_name):
     ports.append (port)
 
     channel = 0
-    for pre in population:
+    for pre in population.all():
         port.gid2index (pre, channel)
         channel += 1
 
@@ -99,7 +99,6 @@ class MusicConnection(simulator.Connection):
             target_object = getattr(getattr(self.postsynaptic_cell._cell, section), target)
         else:
             target_object = getattr(self.postsynaptic_cell._cell, projection.receptor_type)
-        self.nc = simulator.state.parallel_context.gid_connect(int(self.presynaptic_cell), target_object)
         self.nc = projection.port.index2target(self.presynaptic_index, target_object)
         self.nc.weight[0] = parameters.pop('weight')
         # if we have a mechanism (e.g. from 9ML) that includes multiple
@@ -131,7 +130,6 @@ class MusicProjection(Projection):
 
         All other arguments are as for the standard Projection class.
         """
-        params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
         self.port = nmusic.publishEventInput (port)
         ports.append (self.port)
         pre_pop = IndexPopulation(width, PortIndex())
@@ -139,6 +137,7 @@ class MusicProjection(Projection):
                             connector, synapse_type, source=source,
                             receptor_type=receptor_type, space=space,
                             label=label)
+        #print ", ".join("<%d>: %d" % (id, len(self._connections[id])) for id in self._connections)
 
     def _convergent_connect(self, presynaptic_indices, postsynaptic_index,
                             **connection_parameters):
