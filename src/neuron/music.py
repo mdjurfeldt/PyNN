@@ -2,6 +2,8 @@
 MUSIC support for the NEURON backend
 """
 
+import os
+import os.path as osp
 import ctypes
 import numpy
 from itertools import repeat
@@ -166,9 +168,26 @@ class MusicProjection(Projection):
                 MusicConnection(self, pre_idx, postsynaptic_index, **parameters)
 
 
+def find_libnrnmpi():
+    found = False
+    for path in os.getenv('PATH').split(osp.pathsep):
+        if osp.exists(osp.join(path, "nrnivmodl")):
+            found = path
+            break
+    if found:
+        real_path = osp.split(osp.realpath(osp.join(path, "nrnivmodl")))[0]
+        candidate_lib_path = osp.join(real_path, osp.pardir, "lib", "libnrnmpi.so")
+        if osp.exists:
+            return ctypes.CDLL(candidate_lib_path)
+        else:
+            raise Exception("Couldn't find libnrnmpi.so")
+    else:
+        raise Exception("Couldn't find nrnivmodl")
+
+
 if music_support:
-    #libnrnmpi = ctypes.CDLL ("/usr/local/nrn/x86_64/lib/libnrnmpi.so")
-    libnrnmpi = ctypes.CDLL ("/home/andrew/env/music/x86_64/lib/libnrnmpi.so")
+    libnrnmpi = find_libnrnmpi()
+
 
 def music_end ():
     if music_support:
