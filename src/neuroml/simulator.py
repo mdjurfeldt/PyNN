@@ -46,39 +46,15 @@ class State(common.control.BaseState):
         self.segment_counter += 1
     
     def export(self, label="PyNN_network"):
-        # for now, putting all the NeuroML code into this single method, later,
-        # should consider either adding a "to_xml()" method to each relevant
-        # class, or use the Visitor pattern.
-        # The latter would potentially allow implementing neuroml, nineml and
-        # nest_sli backends with minimal redundancy and duplicated code
+        """Export the model as NeuroML"""
+        # and, in future, perhaps SED-ML as well
         doc = neuroml.NeuroMLDocument(id=label)
         net = neuroml.Network(id=label)
         doc.networks.append(net)
         for pp in self.populations:
-            cell_list = getattr(doc, pp.celltype.neuroml_cell_list)
-            cell_list.append(
-                pp.celltype.neuroml_cell_component(
-                                    id=pp.celltype.label,
-                                    **pp.celltype.cell_parameters))
-            for rt in pp.celltype.receptor_types:
-                doc.exp_one_synapses.append(
-                    pp.celltype.neuroml_receptor_component(
-                                    id="%s_%s" % (pp.celltype.label, rt),
-                                    gbase="1 uS",
-                                    **pp.celltype.receptor_parameters(rt)))
-            net.populations.append(
-                neuroml.Population(id=pp.label,
-                                   component=pp.celltype.label,
-                                   size=pp.size))
+            pp.to_neuroml(doc, net)
         for prj in self.projections:
-            # there is a neuroml.Projection class, but I'm not sure how well supported it is,
-            # so using neuroml.SynapticConnection for now.
-            for c in prj.connections:
-                net.synaptic_connections.append(
-                    neuroml.SynapticConnection(
-                        from_="%s[%i]" % (prj.pre.label, c.presynaptic_index),
-                        synapse="%s_%s" % (prj.post.celltype.label, prj.receptor_type),
-                        to="%s[%i]" % (prj.post.label, c.postsynaptic_index)))
+            prj.to_neuroml(net)
         NeuroMLWriter.write(doc, self.xmlfile, validate=False)
 
 

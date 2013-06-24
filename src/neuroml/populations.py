@@ -1,4 +1,7 @@
+from __future__ import absolute_import
+
 import numpy
+import neuroml
 from pyNN import common
 from pyNN.standardmodels import StandardCellType
 from pyNN.parameters import ParameterSpace, simplify
@@ -94,3 +97,11 @@ class Population(common.Population):
         parameter_space.evaluate(simplify=False)
         for name, value in parameter_space.items():
             self._parameters[name] = value
+
+    def to_neuroml(self, doc, net):
+        self.celltype.to_neuroml(doc)
+        net.populations.append(
+            neuroml.Population(id=self.label,
+                               component=self.celltype.label,
+                               size=self.size))
+        

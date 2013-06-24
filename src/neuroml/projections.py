@@ -1,4 +1,6 @@
+from __future__ import absolute_import
 from itertools import repeat, izip
+import neuroml
 from pyNN import common
 from pyNN.core import ezip
 from pyNN.parameters import ParameterSpace
@@ -56,3 +58,13 @@ class Projection(common.Projection):
             self.connections.append(
                 Connection(pre_idx, postsynaptic_index, **other_attributes)
             )
+    
+    def to_neuroml(self, net):
+        # there is a neuroml.Projection class, but I'm not sure how well supported it is,
+        # so using neuroml.SynapticConnection for now.
+        for c in self.connections:
+            net.synaptic_connections.append(
+                neuroml.SynapticConnection(
+                    from_="%s[%i]" % (self.pre.label, c.presynaptic_index),
+                    synapse="%s_%s" % (self.post.celltype.label, self.receptor_type),
+                    to="%s[%i]" % (self.post.label, c.postsynaptic_index)))

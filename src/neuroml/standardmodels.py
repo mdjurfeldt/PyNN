@@ -67,6 +67,18 @@ class NeuroMLCellTypeMixin(object):
                 recep_parameters[stripped_name] = "%g %s" % (value, get_units(name))
         return recep_parameters
 
+    def to_neuroml(self, doc):
+        cell_list = getattr(doc, self.neuroml_cell_list)
+        cell_list.append(
+            self.neuroml_cell_component(id=self.label,
+                                        **self.cell_parameters))
+        for rt in self.receptor_types:
+            doc.exp_one_synapses.append(
+                self.neuroml_receptor_component(
+                                id="%s_%s" % (self.label, rt),
+                                gbase="1 uS",
+                                **self.receptor_parameters(rt)))
+
 
 #class IF_curr_alpha(cells.IF_curr_alpha):
 #    __doc__ = cells.IF_curr_alpha.__doc__
