@@ -2,3 +2,64 @@
 NeuroML
 =======
 
+.. note:: the :mod:`pyNN.neuroml` module is still in an early stage of development
+          and has many rough edges. Please try it out and `open a ticket`_ if
+          something doesn't work.
+
+NeuroML_ is an XML-based language for declarative specification of neuronal
+network models. PyNN models can be exported to NeuroML format using the
+:mod:`pyNN.neuroml` module, just replace
+
+.. code-block:: python
+
+    import pyNN.neuron as sim
+    
+(or whatever) with
+
+    import pyNN.neuroml as sim
+    
+By default, a file :file:`PyNN2NeuroML.nml` is created. If you would like to
+specify the file name yourself, pass a ``file`` option to the :func:`setup()`
+function, e.g.
+
+    sim.setup(timestep=0.1, file="my_script.xml")
+
+Note that only the network is exported, simulation-related commands, such as
+which neurons to record from and how long to simulate for, are not included.
+In future, we plan to export this information in SED-ML_ format.
+
+To give you an idea what this looks like, the following Python script
+
+.. code-block:: python
+
+    import pyNN.neuroml as sim
+    sim.setup(file="simple_model.xml")
+    p1 = sim.Population(1, sim.SpikeSourceArray([12.0, 19.7, 41.5]), label="input")
+    p2 = sim.Population(5, sim.IF_cond_exp(tau_m=10.0, v_rest=-60.0), label="output")
+    prj = sim.Projection(p1, p2,
+                         sim.FixedProbabilityConnector(p_connect=0.5),
+                         sim.StaticSynapse(weight=0.06, delay=0.5), label="connections")
+
+produces the following XML
+
+.. code-block:: xml
+
+    <xml goes here>
+
+
+PyNN does not current support importing NeuroML files. This is planned for a
+future release.
+
+
+Installation
+------------
+
+The :mod:`pyNN.neuroml` module needs the libNeuroML_ package to be installed, e.g.::
+
+    $ pip install libNeuroML
+
+
+.. _NeuroML: http://www.neuroml.org
+.. _`open a ticket`: https://github.com/NeuralEnsemble/PyNN/issues/new
+.. _SED-ML: http://sed-ml.org/
+.. _libNeuroML: https://libneuroml.readthedocs.org/
