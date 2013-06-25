@@ -1,0 +1,139 @@
+======================
+Multi-simulator models
+======================
+
+The :mod:`pyNN.music` module allows you to simulate models using more than one
+simulator at the same time, e.g. you can simulate part of your network in
+NEURON and the rest of it in NEST, with spikes being communicated between the
+two simulators.
+
+This requires that the MUSIC_ library be installed (which in turn requires MPI),
+and that each of the simulators you want to use has been compiled with MUSIC
+support. Installation instructions are given below.
+
+.. note:: the :mod:`pyNN.music` module is still in an early stage of development
+          and has many rough edges. Please try it out and `open a ticket`_ if
+          something doesn't work.
+
+
+Importing simulator backends
+----------------------------
+
+The first difference when using MUSIC is that instead of importing the simulator
+backends directly, you ask MUSIC to do it for you, and you also have to
+specify how many MPI processes each simulator will use, e.g.:
+
+.. code-block:: python
+
+    from pyNN import music
+    sim1, sim2 = music.setup(music.Config("nest", 6), music.Config("neuron", 10))
+
+Here we are specifying that NEST should be run in 6 MPI processes and NEURON in
+10 processes. When launching from the command line, you should specify the
+*total* number of processes needed, e.g.::
+
+    $ mpirun -np 16 python my_music_script.py
+
+Creating networks
+-----------------
+
+You can then setup each simulator and create populations as usual, e.g.:
+
+.. code-block:: python
+
+    sim1.setup(timestep=0.1)
+    sim2.setup(timestep=0.05)
+    
+    input_population = sim1.Population(1000, sim1.SpikeSourcePoisson(rate=10.0))
+    population1 = sim2.Population(100, sim2.HH_cond_exp())
+    population2 = sim2.Population(200, sim2.IF_curr_alpha())
+
+Note that it is possible to use different timesteps in the two simulators. The
+MUSIC library takes care of the correct sychronization.
+
+To connect two populations that are on the same simulator, just use a
+:class:`Projection` as usual:
+
+.. code-block:: python
+
+    projection12 = sim2.Projection(population1, population2,
+                                   sim2.AllToAllConnector(),
+                                   sim2.StaticSynapse(weight=1.0, delay=0.5))
+
+but if you want to connect populations across simulators, you need to use a
+:class:`music.Projection`:
+
+.. code-block:: python
+
+    input_projection = music.Projection(input_population, population1,
+                                        sim2.AllToAllConnector(),
+                                        sim2.StaticSynapse(weight=0.1, delay=0.2))
+
+Note that the connector and synapse type objects should match the simulator for
+the *target* (post-synaptic) population.
+
+
+Running the simulation
+----------------------
+
+The :func:`music.run()` function takes care of advancing both simulators. You
+should *not* call :func:`sim1.run()` or :func:`sim2.run()`.
+
+.. todo:: we should disable :func:`sim.run()` when using MUSIC
+
+
+Finishing up
+------------
+
+To ensure that all the MPI processes finish correctly and do not hang, you
+should call :func:`music.end()` at the end. This takes care of calling
+:func:`sim1.end()` and :func:`sim2.end()` for you.
+
+
+How this works
+--------------
+
+The same script is run in each MPI process. In the processes running NEURON,
+``sim2`` is the real :mod:`pyNN.neuron` module, while ``sim1`` is a proxy
+object that has the same interface as a real PyNN backend, but actually does
+nothing. In the processes running NEST, the situation is reversed: ``sim1`` is
+the real :mod:`pyNN.nest` while ``sim2`` is a proxy object.
+
+You should write your script as though both simulators were running in the same
+process. There is generally no need to check which simulator is *really*
+running in a given MPI process. If you do need to check, you can use the
+:func:`music.is_proxy()` function to do so.
+
+
+Installation
+------------
+
+Download the MUSIC_ package from http://software.incf.org/software/music/download
+There are Debian packages, or you can compile from source.
+
+    $ tar xzf music_1.0.7.orig.tar.gz
+    $ cd music-1.0.7
+    $ ./configure
+    $ make
+    $ make install
+    
+To buid NEST with MUSIC support, the instructions are as in :doc:`installation`,
+except that the :option:`--with-music` should be added:
+
+    $ ./configure --with-mpi --with-music
+    $ make
+    $ make install
+    
+To build NEURON with MUSIC support, again add the :option:`--with-music` option:
+
+    $ ./configure --with-paranrn --with-nrnpython --with-music
+    $ make
+    $ make install 
+    $ cd src/nrnpython
+    $ python setup.py install
+    $ cd ../neuronmusic
+    $ python setup.py install
+
+
+.. _MUSIC: http://software.incf.org/software/music
+.. _`open a ticket`: https://github.com/NeuralEnsemble/PyNN/issues/new

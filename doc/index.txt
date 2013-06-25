@@ -20,6 +20,7 @@ see http://neuralensemble.org/trac/PyNN
    random_numbers
    backends
    parallel
+   music
    units
    examples
    contributors
