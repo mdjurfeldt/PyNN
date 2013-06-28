@@ -1,123 +1,32 @@
 """
+MOOSE implementation of the PyNN API
 
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
+import numpy as np
 import moose
-import numpy
-import uuid
-import os
-
-temporary_directory = "temporary_spike_files"
-
-mV = 1e-3
-ms = 1e-3
-nA = 1e-9
-uS = 1e-6
-nF = 1e-9
+from .simulator import state, INIT_CLOCK, INTEGRATION_CLOCK, RECORDING_CLOCK, mV, ms, nA, uS, nF
 
 
-class RecorderMixin(object):
+class StandardIF(moose.LeakyIaF):
     
-    def record_spikes(self):
-        self.spike_table = moose.Table("spikes", self)
-        self.spike_table.stepMode = 4
-        self.spike_table.stepSize = 0.5
-        self.spike_table.useClock(0)
-        self.spike_table.connect('inputRequest', self.source, 'state')
-    
-    def record_v(self):
-        self.vmTable = moose.Table("Vm", self)
-        self.vmTable.stepMode = 3
-        self.vmTable.connect("inputRequest", self.comp, "Vm")
-        self.vmTable.useClock(2)
-        print "vmTable is at %s" % self.vmTable.path
-
-    def record_gsyn(self, syn_name):
-        syn_map = {
-            'excitatory': self.esyn,
-            'inhibitory': self.isyn
-        }
-        if not hasattr(self, "gsyn_tables"):
-            self.gsyn_tables = {}
-        self.gsyn_tables[syn_name] = moose.Table(syn_name, self)
-        self.gsyn_tables[syn_name].stepMode = 3
-        self.gsyn_tables[syn_name].connect("inputRequest", syn_map[syn_name], "Gk")
-        self.gsyn_tables[syn_name].useClock(2)
-
-
-class SingleCompHH(moose.Neutral, RecorderMixin):
-    
-    def __init__(self, path, GbarNa=20*uS, GbarK=6*uS, GLeak=0.01*uS, Cm=0.2*nF,
-                 ENa=40*mV, EK=-90*mV, VLeak=-65*mV, Voff=-63*mV, ESynE=0*mV,
-                 ESynI=-70*mV, tauE=2*ms, tauI=5*ms, inject=0*nA, initVm=-65*mV):
-        moose.Neutral.__init__(self, path)
-        self.comp = moose.Compartment("compartment", self)
-        print "compartment is at %s" % self.comp.path
-        print locals()
-        self.comp.initVm = initVm
-        self.comp.Rm = 1/GLeak
-        self.comp.Cm = Cm
-        self.comp.Em = VLeak
-        self.comp.inject = inject
-        self.na = moose.HHChannel("na", self.comp)
-        self.na.Ek = ENa
-        self.na.Gbar = GbarNa
-        self.na.Xpower = 3
-        self.na.Ypower = 1
-        self.na.setupAlpha("X", 3.2e5 * (13*mV+Voff), -3.2e5, -1, -(13*mV+Voff), -4*mV, # alpha
-                               -2.8e5 * (40*mV+Voff),  2.8e5, -1, -(40*mV+Voff), 5*mV)  # beta
-        self.na.setupAlpha("Y", 128,                   0,      0, -(17*mV+Voff), 18*mV, # alpha
-                                4.0e3,                 0,      1, -(40*mV+Voff), -5*mV) # beta
-
-        self.k = moose.HHChannel("k", self.comp)
-        self.k.Ek = EK
-        self.k.Gbar = GbarK
-        self.k.Xpower = 4
-        self.k.setupAlpha("X", 3.2e4 * (15*mV+Voff), -3.2e4, -1, -(15*mV+Voff), -5*mV,
-                               500,                  0,       0, -(10*mV+Voff),  40*mV)
-
-        self.esyn = moose.SynChan("excitatory", self.comp)
-        self.esyn.Ek = ESynE
-        self.esyn.tau1 = tauE 
-        self.isyn = moose.SynChan("inhibitory", self.comp)
-        self.isyn.Ek = ESynI
-        self.isyn.tau1 = tauI
-        for syn in self.esyn, self.isyn:
-            syn.tau2 = 1e-6
-            syn.Gbar = 1*uS
-            self.comp.connect("channel", syn, "channel")
-            syn.n_incoming_connections = 0
-
-        self.comp.connect("channel", self.na, "channel")
-        self.comp.connect("channel", self.k , "channel")
-        
-        self.comp.useClock(0)
-        self.comp.useClock(1, "init")
-        
-        self.source = moose.SpikeGen("source", self.comp)
-        self.source.thresh = 0.0
-        self.source.abs_refract = 2.0
-        self.comp.connect("VmSrc", self.source, "Vm")
-
-    # need to create some properties, so we can update parameter values after creation
-
-
-
-
-class StandardIF(moose.IntFire, RecorderMixin):
-    
-    def __init__(self, path, syn_shape, Cm=1.0, Em=0.0, Rm=1.0, Vr=0.0, Vt=1.0,
-                 refractT=0.0, inject=0.0, tau_e=0.001, tau_i=0.001, e_e=0.0,
-                 e_i=-0.07):
-        moose.IntFire.__init__(self, path)
+    def __init__(self, path, syn_shape, Cm=1.0, Em=0.0, Rm=1.0, Vreset=0.0,
+                 Vthreshold=1.0, refractoryPeriod=0.0, inject=0.0, tau_e=0.001,
+                 tau_i=0.001, e_e=0.0, e_i=-0.07):
+        moose.LeakyIaF.__init__(self, path)
         self.Cm = Cm
         self.Em = Em
         self.Rm = Rm
-        self.Vr = Vr
-        self.Vt = Vt
-        self.refractT = refractT
+        self.Vreset = Vreset
+        self.Vthreshold = Vthreshold
+        if refractoryPeriod != 0:  # in MOOSE, the membrane potential can evolve
+                                   # during the refractory period. For the
+                                   # other PyNN backends it is clamped to the
+                                   # reset potential.
+            raise ValueError("pyNN.moose does not support refractory periods.")
+        self.refractoryPeriod = refractoryPeriod
         self.inject = inject
         
         self.syn_shape = syn_shape
@@ -126,20 +35,25 @@ class StandardIF(moose.IntFire, RecorderMixin):
         for syn in self.esyn, self.isyn:
             syn.tau2 = 1e-6 # instantaneous rise, for shape=='exp'
             syn.Gbar = 1*uS
-            self.connect("channel", syn, "channel")
-            syn.n_incoming_connections = 0
-        
+            moose.connect(syn, 'IkOut', self, 'injectDest')
+            moose.connect(self, 'VmOut', syn, 'Vm')        
         self.tau_e = tau_e
         self.tau_i = tau_i
         self.e_e = e_e
         self.e_i = e_i
         
-        self.source = moose.SpikeGen("source", self)
-        self.source.thresh = 0.0
-        self.source.abs_refract = 2.0
-        self.connect("VmSrc", self.source, "Vm")
-        self.comp = self # for recorder mixin
-        
+        #self.source = moose.SpikeGen("source", self)
+        #self.source.thresh = 0.0
+        #self.source.abs_refract = 2.0
+        #self.connect("VmSrc", self.source, "Vm")
+        moose.useClock(INIT_CLOCK, self.path, 'init')
+        moose.useClock(INTEGRATION_CLOCK, self.path, 'process')
+        moose.useClock(INTEGRATION_CLOCK, self.esyn.path, 'process')
+        moose.useClock(INTEGRATION_CLOCK, self.isyn.path, 'process')
+        #moose.useClock(INTEGRATION_CLOCK, self.source.path)
+
+        self.tables = {}
+
     def _get_tau_e(self):
         return self.esyn.tau1
     def _set_tau_e(self, val):
@@ -167,47 +81,64 @@ class StandardIF(moose.IntFire, RecorderMixin):
     def _set_e_i(self, val):
         self.isyn.Ek = val
     e_i = property(fget=_get_e_i, fset=_set_e_i)
- 
 
 
-class RandomSpikeSource(moose.RandomSpike):
-    
-    def __init__(self, path, rate, start=0.0, duration=numpy.inf):
-        moose.RandomSpike.__init__(self, path)
-        self.minAmp = 1.0
-        self.maxAmp = 1.0
-        self.rate = rate
-        self.reset = 1 #True
-        self.resetValue = 0.0
-        # how to handle start and duration?
-        self.useClock(0)
-        self.source = self
-
-    def record_state(self):
-        # for testing, can be deleted when everything is working
-        self.stateTable = moose.Table("state", self)
-        self.stateTable.stepMode = 3
-        self.stateTable.connect("inputRequest", self, "state")
-        self.stateTable.useClock(2)
-
-
-class VectorSpikeSource(moose.TimeTable):
+class PulseGenSpikeSource(object):
     
     def __init__(self, path, spike_times):
-        moose.TimeTable.__init__(self, path)
-        self._save_spikes(spike_times)
-        self.source = self
+        """
+        spike_times is a Sequence containing times in seconds
+        """
+        self.source = moose.SpikeGen(path)
+        self.source.threshold = 0.1
+        self.pg = moose.PulseGen("%s/pulses" % path)
+        times = spike_times.value
+        delays = np.empty((times.size + 1,))
+        delays[0] = times[0]
+        delays[1:-1] = times[1:] - times[:-1]
+        delays[-1] = 1e15
+        self.pg.count = delays.size
+        for i, deltat in enumerate(delays):
+            print i, deltat
+            self.pg.delay[i] = deltat
+            self.pg.width[i] = 0.001
+            self.pg.level[i] = 0.5
+        moose.useClock(INTEGRATION_CLOCK, self.source.path, "process")
+        moose.useClock(INTEGRATION_CLOCK, self.pg.path, "process")
+        moose.connect(self.pg, 'outputOut', self.source, 'Vm')  
+
+
+class TableSpikeSource(object):
+    """
+    There must be a more efficient, event-based way to implement this.
+    """
+    
+    def __init__(self, path, spike_times):
+        self.spike_table = moose.StimulusTable(path)
+        self.spike_table.startTime = 0.0
+        self.spike_table.stepSize = state.dt*ms
+        self.spike_table.stopTime = spike_times.max()*ms
+        indices = (np.round(spike_times.value)/state.dt).astype(int)
+        self.spike_table.vec = np.zeros((spike_times.max()/state.dt + 1,))
+        self.spike_table.vec[indices] = 1
         
-    def _save_spikes(self, spike_times):
-        ms = 1e-3
-        self._spike_times = spike_times
-        filename = self.filename or "%s/%s.spikes" % (temporary_directory,
-                                                      uuid.uuid4().hex)
-        numpy.savetxt(filename, spike_times*ms, "%g")
-        self.filename = filename
+        self.source = moose.SpikeGen('%s/spike' % path)
+        self.source.threshold = 0.5
+        moose.connect(self.spike_table, 'output', self.source, 'Vm')
         
-    def _get_spike_times(self):
-        return self._spike_times
-    def _set_spike_times(self, spike_times):
-        self._save_spikes(spike_times)
-    spike_times = property(fget=_get_spike_times, fset=_set_spike_times)
+        moose.useClock(INTEGRATION_CLOCK, self.spike_table.path, 'process')
+        moose.useClock(INTEGRATION_CLOCK, self.source.path, 'process')
+        
+    #def _save_spikes(self, spike_times):
+    #    ms = 1e-3
+    #    self._spike_times = spike_times
+    #    filename = self.filename or "%s/%s.spikes" % (temporary_directory,
+    #                                                  uuid.uuid4().hex)
+    #    numpy.savetxt(filename, spike_times*ms, "%g")
+    #    self.filename = filename
+    #    
+    #def _get_spike_times(self):
+    #    return self._spike_times
+    #def _set_spike_times(self, spike_times):
+    #    self._save_spikes(spike_times)
+    #spike_times = property(fget=_get_spike_times, fset=_set_spike_times)
