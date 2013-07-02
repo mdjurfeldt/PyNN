@@ -20,6 +20,7 @@ def test_scenarios():
             else:
                 raise SkipTest
 
+
 def test_recording():
     if not have_moose:
         raise SkipTest
@@ -29,15 +30,15 @@ def test_recording():
 
     p = sim.Population(2, sim.HH_cond_exp, {'i_offset': 0.1})
     p.initialize(v=-65.0)
-    p.record_v()
+    p.record('v')
 
     sim.run(100.0)
 
-    id, t, v = p.get_v().T
-    assert v.max() > 0 # at least one spike
+    data = p.get_data()
+    # assert something here
     sim.end()
 
-    return id, t, v
+    return data
 
 
 def test_synaptic_connections():
@@ -52,15 +53,23 @@ def test_synaptic_connections():
     #p1 = sim.Population(1, sim.SpikeSourcePoisson, {'rate': 100.0})
     #p1 = sim.Population(1, sim.HH_cond_exp, {'i_offset': 1.0})
     #p2 = sim.Population(1, sim.HH_cond_exp)
-    p2 = sim.Population(1, sim.IF_cond_exp)
+    p2 = sim.Population(2, sim.IF_cond_exp(tau_refrac=0.0, v_rest=-61.2), initial_values={'v': -61.2})
 
-    prj = sim.Projection(p1, p2, sim.AllToAllConnector(weights=1e-4))
+    connector = sim.FromListConnector([(0, 1, 1e-4, 0.5)])
+    prj = sim.Projection(p1, p2, connector,
+                         sim.StaticSynapse(weight=1e-4))
 
-    p2.record_v()
+    p2.record(['v', 'gsyn_exc'])
 
     sim.run(100.0)
 
-    id, t, v2 = p2.get_v().T
+    data = p2.get_data()
     sim.end()
 
-    return id, t, v2
+    vm = data.segments[0].filter(name='v')[0]
+    assert_equal(vm.shape, (1001, 2))
+    vm0 = vm[:, numpy.where(vm.channel_index==0)[0][0]]
+    vm1 = vm[:, numpy.where(vm.channel_index==1)[0][0]]
+    assert_equal(vm0.max(), -61.2)  # no synaptic input 
+    assert vm1.max() > -61.2        # receives synaptic input
+    return data

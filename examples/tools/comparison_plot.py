@@ -21,14 +21,16 @@ def variable_names(segment):
     return set(signal.name for signal in segment.analogsignalarrays)
 
 
-def plot_signal(panel, signal, index, colour='b', linewidth='1', label=''):
+def plot_signal(panel, signal, index, colour='b', linewidth='1', label='', t_range=None):
     label = "%s (Neuron %d)" % (label, signal.channel_index[index])
     panel.plot(signal.times, signal[:, index], colour, linewidth=linewidth, label=label)
+    if t_range is not None:
+        panel.set_xlim(*t_range)
     panel.set_ylabel("%s (%s)" % (signal.name, signal.units._dimensionality.string))
     plt.setp(plt.gca().get_xticklabels(), visible=False)
     
 
-def plot(datafiles, output_file, annotation=None):
+def plot(datafiles, output_file, t_range=None, annotation=None):
     print datafiles
     print output_file
     blocks = [get_io(datafile).read_block() for datafile in datafiles]
@@ -69,7 +71,8 @@ def plot(datafiles, output_file, annotation=None):
             for channel in sorted_channels:
                 i = array.channel_index.tolist().index(channel)
                 print "plotting '%s' for %s in panel %d" % (array.name, label, panel)
-                plot_signal(panels[panel], array, i, colour=col, linewidth=lw, label=label)
+                plot_signal(panels[panel], array, i, colour=col, linewidth=lw,
+                            label=label, t_range=t_range)
                 panel += 1
     for panel in panels:
         panel.legend()
@@ -95,9 +98,12 @@ def main():
                         help="a list of data files in a Neo-supported format")
     parser.add_argument("-o", "--output-file", default="output.png",
                         help="output filename")
+    parser.add_argument("--time-range", help="Range of values on time axis: t_min,t_max")
     parser.add_argument("-a", "--annotation", help="additional annotation (optional)")
     args = parser.parse_args()
-    plot(args.datafiles, output_file=args.output_file, annotation=args.annotation)
+    t_range = args.time_range and eval(args.time_range) or None
+    plot(args.datafiles, output_file=args.output_file, t_range=t_range,
+         annotation=args.annotation)
 
     
 if __name__ == "__main__":

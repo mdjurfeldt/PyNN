@@ -7,14 +7,16 @@ MOOSE implementation of the PyNN API
 
 import numpy as np
 import moose
-from .simulator import state, INIT_CLOCK, INTEGRATION_CLOCK, RECORDING_CLOCK, mV, ms, nA, uS, nF
+from .simulator import (state, INIT_TICK, MEMBRANE_INTEGRATION_TICK,
+                        SYNAPSE_INTEGRATION_TICK, RECORDING_TICK,
+                        mV, ms, nA, uS, nF)
 
 
 class StandardIF(moose.LeakyIaF):
     
     def __init__(self, path, syn_shape, Cm=1.0, Em=0.0, Rm=1.0, Vreset=0.0,
                  Vthreshold=1.0, refractoryPeriod=0.0, inject=0.0, tau_e=0.001,
-                 tau_i=0.001, e_e=0.0, e_i=-0.07):
+                 tau_i=0.001, e_e=0.0, e_i=-0.07):  # should add units, as in SingleCompHH
         moose.LeakyIaF.__init__(self, path)
         self.Cm = Cm
         self.Em = Em
@@ -32,7 +34,7 @@ class StandardIF(moose.LeakyIaF):
         self.syn_shape = syn_shape
         self.esyn = moose.SynChan("%s/excitatory" % path)
         self.isyn = moose.SynChan("%s/inhibitory" % path)
-        for syn in self.esyn, self.isyn:
+        for syn in (self.esyn, self.isyn):
             syn.tau2 = 1e-6 # instantaneous rise, for shape=='exp'
             syn.Gbar = 1*uS
             moose.connect(syn, 'IkOut', self, 'injectDest')
@@ -46,11 +48,13 @@ class StandardIF(moose.LeakyIaF):
         #self.source.thresh = 0.0
         #self.source.abs_refract = 2.0
         #self.connect("VmSrc", self.source, "Vm")
-        moose.useClock(INIT_CLOCK, self.path, 'init')
-        moose.useClock(INTEGRATION_CLOCK, self.path, 'process')
-        moose.useClock(INTEGRATION_CLOCK, self.esyn.path, 'process')
-        moose.useClock(INTEGRATION_CLOCK, self.isyn.path, 'process')
-        #moose.useClock(INTEGRATION_CLOCK, self.source.path)
+        moose.useClock(INIT_TICK, self.path, 'init')
+        moose.useClock(INIT_TICK, self.esyn.path, 'init') ##
+        moose.useClock(INIT_TICK, self.isyn.path, 'init') ##
+        moose.useClock(MEMBRANE_INTEGRATION_TICK, self.path, 'process')
+        moose.useClock(SYNAPSE_INTEGRATION_TICK, self.esyn.path, 'process')
+        moose.useClock(SYNAPSE_INTEGRATION_TICK, self.isyn.path, 'process')
+        #moose.useClock(MEMBRANE_INTEGRATION_TICK, self.source.path)
 
         self.tables = {}
 
@@ -83,6 +87,101 @@ class StandardIF(moose.LeakyIaF):
     e_i = property(fget=_get_e_i, fset=_set_e_i)
 
 
+class SingleCompHH(moose.Compartment):
+    
+    def __init__(self, path, GbarNa=20*uS, GbarK=6*uS, GLeak=0.01*uS, Cm=0.2*nF,
+                 ENa=40*mV, EK=-90*mV, VLeak=-65*mV, Voff=-63*mV, ESynE=0*mV,
+                 ESynI=-70*mV, tauE=2*ms, tauI=5*ms, inject=0*nA, initVm=-65*mV):
+        moose.Compartment.__init__(self, path)
+        self.initVm = initVm
+        self.Rm = 1/GLeak
+        self.Cm = Cm
+        self.Em = VLeak
+        self.inject = inject
+        
+        vdiv = 150
+        vmin = -100*mV
+        vmax = 50*mV
+        
+        self.na = moose.HHChannel("%s/na" % path)
+        self.na.Ek = ENa
+        self.na.Gbar = GbarNa
+        self.na.Xpower = 3
+        self.na.Ypower = 1
+        gate = moose.HHGate("%s/gateX" % self.na.path)
+        gate.setupAlpha([3.2e5 * (13*mV+Voff), -3.2e5, -1, -(13*mV+Voff), -4*mV, # alpha
+                         -2.8e5 * (40*mV+Voff),  2.8e5, -1, -(40*mV+Voff), 5*mV,  # beta
+                        vdiv, vmin, vmax])
+        gate = moose.HHGate("%s/gateY" % self.na.path)
+        gate.setupAlpha([128,                   0,      0, -(17*mV+Voff), 18*mV, # alpha
+                         4.0e3,                 0,      1, -(40*mV+Voff), -5*mV, # beta
+                        vdiv, vmin, vmax])
+        self.k = moose.HHChannel("%s/k" % path)
+        self.k.Ek = EK
+        self.k.Gbar = GbarK
+        self.k.Xpower = 4
+        gate = moose.HHGate("%s/gateX" % self.k.path)
+        gate.setupAlpha([3.2e4 * (15*mV+Voff), -3.2e4, -1, -(15*mV+Voff), -5*mV,
+                         500,                  0,       0, -(10*mV+Voff),  40*mV,
+                         vdiv, vmin, vmax])
+        self.na.X = 0  # these initial values should really be handled at the PyNN level
+        self.na.Y = 1
+        self.k.X = 0
+
+        self.esyn = moose.SynChan("%s/excitatory" % path)
+        self.isyn = moose.SynChan("%s/inhibitory" % path)
+        for syn in (self.esyn, self.isyn):
+            syn.tau2 = 1e-6 # instantaneous rise, for shape=='exp'
+            syn.Gbar = 1*uS
+            moose.connect(syn, "channel", self, "channel")
+       
+        self.tauE = tauE
+        self.tauI = tauI
+        self.ESynE = ESynE
+        self.ESynI = ESynI
+
+        moose.connect(self.na, "channel", self, "channel")
+        moose.connect(self.k, "channel", self, "channel")
+
+        for obj in (self, self.na, self.k):
+            moose.useClock(INIT_TICK, obj.path, "init")
+            moose.useClock(MEMBRANE_INTEGRATION_TICK, obj.path, "process")
+        for obj in (self.esyn, self.isyn):
+            moose.useClock(INIT_TICK, obj.path, 'init')
+            moose.useClock(SYNAPSE_INTEGRATION_TICK, obj.path, 'process')
+        
+        #self.source = moose.SpikeGen("source", self)
+        #self.source.thresh = 0.0
+        #self.source.abs_refract = 2.0
+        #self.connect("VmSrc", self.source, "Vm")
+
+        self.tables = {}
+
+    def _get_tau_e(self):
+        return self.esyn.tau1
+    def _set_tau_e(self, val):
+        self.esyn.tau1 = val
+    tauE = property(fget=_get_tau_e, fset=_set_tau_e)
+    
+    def _get_tau_i(self):
+        return self.isyn.tau1
+    def _set_tau_i(self, val):
+        self.isyn.tau1 = val
+    tauI = property(fget=_get_tau_i, fset=_set_tau_i)
+    
+    def _get_e_e(self):
+        return self.esyn.Ek
+    def _set_e_e(self, val):
+        self.esyn.Ek = val
+    ESynE = property(fget=_get_e_e, fset=_set_e_e)
+    
+    def _get_e_i(self):
+        return self.isyn.Ek
+    def _set_e_i(self, val):
+        self.isyn.Ek = val
+    ESynI = property(fget=_get_e_i, fset=_set_e_i)
+
+
 class PulseGenSpikeSource(object):
     
     def __init__(self, path, spike_times):
@@ -99,12 +198,11 @@ class PulseGenSpikeSource(object):
         delays[-1] = 1e15
         self.pg.count = delays.size
         for i, deltat in enumerate(delays):
-            print i, deltat
             self.pg.delay[i] = deltat
-            self.pg.width[i] = 0.001
+            self.pg.width[i] = 2*state.clock.tick[MEMBRANE_INTEGRATION_TICK].dt  # to test: would a width of 1*dt work?
             self.pg.level[i] = 0.5
-        moose.useClock(INTEGRATION_CLOCK, self.source.path, "process")
-        moose.useClock(INTEGRATION_CLOCK, self.pg.path, "process")
+        moose.useClock(MEMBRANE_INTEGRATION_TICK, self.source.path, "process")
+        moose.useClock(MEMBRANE_INTEGRATION_TICK, self.pg.path, "process")
         moose.connect(self.pg, 'outputOut', self.source, 'Vm')  
 
 
@@ -126,19 +224,5 @@ class TableSpikeSource(object):
         self.source.threshold = 0.5
         moose.connect(self.spike_table, 'output', self.source, 'Vm')
         
-        moose.useClock(INTEGRATION_CLOCK, self.spike_table.path, 'process')
-        moose.useClock(INTEGRATION_CLOCK, self.source.path, 'process')
-        
-    #def _save_spikes(self, spike_times):
-    #    ms = 1e-3
-    #    self._spike_times = spike_times
-    #    filename = self.filename or "%s/%s.spikes" % (temporary_directory,
-    #                                                  uuid.uuid4().hex)
-    #    numpy.savetxt(filename, spike_times*ms, "%g")
-    #    self.filename = filename
-    #    
-    #def _get_spike_times(self):
-    #    return self._spike_times
-    #def _set_spike_times(self, spike_times):
-    #    self._save_spikes(spike_times)
-    #spike_times = property(fget=_get_spike_times, fset=_set_spike_times)
+        moose.useClock(MEMBRANE_INTEGRATION_TICK, self.spike_table.path, 'process')
+        moose.useClock(MEMBRANE_INTEGRATION_TICK, self.source.path, 'process')

@@ -23,7 +23,7 @@ def register(exclude=[]):
     return inner_register
 
 
-@register(exclude=["nemo"])
+@register(exclude=["nemo", "moose"])
 def scenario1(sim):
     """
     Balanced network of integrate-and-fire neurons.
@@ -91,7 +91,7 @@ def scenario1(sim):
     sim.end()
 
 
-@register(exclude=["nemo"])
+@register(exclude=["nemo", "moose"])
 def scenario1a(sim):
     """
     Balanced network of integrate-and-fire neurons, built with the "low-level"
@@ -292,7 +292,7 @@ def scenario3(sim):
     return initial_weights, final_weights, pre, post, connections
 
 
-@register(exclude=["nemo"])
+@register(exclude=["nemo", "moose"])
 def ticket166(sim, interactive=False):
     """
     Check that changing the spike_times of a SpikeSourceArray mid-simulation
@@ -341,7 +341,7 @@ def ticket166(sim, interactive=False):
     assert final_v_1 < -64.99 # second neuron has decayed back towards rest
 
 
-@register()
+@register(exclude=["moose"])
 def test_reset(sim):
     """
     Run the same simulation n times without recreating the network,
@@ -365,7 +365,7 @@ def test_reset(sim):
                                    data.segments[0].analogsignalarrays[0], 1e-11)
 
 
-@register()
+@register(exclude=["moose"])
 def test_reset_with_clear(sim):
     """
     Run the same simulation n times without recreating the network,
@@ -391,7 +391,7 @@ def test_reset_with_clear(sim):
                                    data[0].segments[0].analogsignalarrays[0], 1e-11)
 
 
-@register(exclude=['brian', 'pcsim', 'nemo'])
+@register(exclude=['brian', 'pcsim', 'nemo', 'moose'])
 def test_reset_recording(sim):
     """
     Check that record(None) resets the list of things to record.
@@ -423,7 +423,7 @@ def test_reset_recording(sim):
     assert not (vi(0)[1:, 0] == vi(1)[1:, 0]).any()            # none of the others should be, because of different i_offset
 
 
-@register()
+@register(exclude=["moose"])
 def test_setup(sim):
     """
     Run the same simulation n times, recreating the network each time,
@@ -465,7 +465,7 @@ def test_EIF_cond_alpha_isfa_ista(sim):
     return data
 
 
-@register(exclude=['pcsim', 'nemo', 'brian'])
+@register(exclude=['pcsim', 'nemo', 'brian', 'moose'])
 def test_HH_cond_exp(sim):
     sim.setup(timestep=0.001, min_delay=0.1)
     cellparams = {
@@ -541,7 +541,7 @@ def test_record_vm_and_gsyn_from_assembly(sim):
     sim.end()
 
 
-@register(exclude=["pcsim", "nemo"])
+@register(exclude=["pcsim", "nemo", "moose"])
 def test_changing_electrode(sim):
     """
     Check that changing the values of the electrodes on the fly is taken into account
@@ -569,7 +569,7 @@ def test_changing_electrode(sim):
 
 
 
-@register(exclude=['nemo'])
+@register(exclude=['nemo', 'moose'])
 def ticket195(sim):
     """
     Check that the `connect()` function works correctly with single IDs (see
@@ -587,7 +587,7 @@ def ticket195(sim):
     assert_arrays_almost_equal(post.get_data().segments[0].spiketrains[0], numpy.array([13.4])*pq.ms, 0.5)
 
 
-@register()
+@register(exclude=["moose"])
 def ticket226(sim):
     """
     Check that the start time of DCSources is correctly taken into account
@@ -609,7 +609,7 @@ def ticket226(sim):
     assert v_10p1 > -59.99*pq.mV, v_10p1
 
 
-@register(exclude=["nemo", "brian"])
+@register(exclude=["nemo", "brian", "moose"])
 def scenario4(sim):
     """
     Network with spatial structure
@@ -658,7 +658,7 @@ def scenario4(sim):
     return data
 
 
-@register()
+@register(exclude=["moose"])
 def issue241(sim):
     spike_train1 = sim.Population(1, sim.SpikeSourcePoisson, {'rate' : [5], 'start' : [1000], 'duration': [1234]})
     spike_train2 = sim.Population(2, sim.SpikeSourcePoisson, {'rate' : [5, 6], 'start' : [1000, 1001], 'duration': [1234, 2345]})

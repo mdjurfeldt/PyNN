@@ -7,7 +7,7 @@ Standard neuron, synapse and electrode models for pyNN.moose
 
 
 from pyNN.standardmodels import build_translations, cells, synapses
-from .cells import StandardIF, PulseGenSpikeSource
+from .cells import StandardIF, SingleCompHH, PulseGenSpikeSource
 from .simulator import state, mV, ms, nA, uS, nF
 
     
@@ -45,26 +45,26 @@ class IF_cond_alpha(cells.IF_cond_alpha):
     extra_parameters = {'syn_shape': 'alpha'}
 
 
-#class HH_cond_exp(cells.HH_cond_exp):
-#    
-#    __doc__ = cells.HH_cond_exp.__doc__    
-#
-#    translations = build_translations(
-#        ('gbar_Na',    'GbarNa', 1e-9),   
-#        ('gbar_K',     'GbarK', 1e-9),    
-#        ('g_leak',     'GLeak', 1e-9),    
-#        ('cm',         'Cm',    1e-9),  
-#        ('v_offset',   'Voff', 1e-3),
-#        ('e_rev_Na',   'ENa', 1e-3),
-#        ('e_rev_K',    'EK', 1e-3), 
-#        ('e_rev_leak', 'VLeak', 1e-3),
-#        ('e_rev_E',    'ESynE', 1e-3),
-#        ('e_rev_I',    'ESynI', 1e-3),
-#        ('tau_syn_E',  'tauE', 1e-3),
-#        ('tau_syn_I',  'tauI', 1e-3),
-#        ('i_offset',   'inject', 1e-9),
-#    )
-#    model = SingleCompHH
+class HH_cond_exp(cells.HH_cond_exp):
+    
+    __doc__ = cells.HH_cond_exp.__doc__    
+
+    translations = build_translations(
+        ('gbar_Na',    'GbarNa',    uS),   
+        ('gbar_K',     'GbarK',     uS),    
+        ('g_leak',     'GLeak',     uS),    
+        ('cm',         'Cm',        nF),  
+        ('v_offset',   'Voff',      mV),
+        ('e_rev_Na',   'ENa',       mV),
+        ('e_rev_K',    'EK',        mV), 
+        ('e_rev_leak', 'VLeak',     mV),
+        ('e_rev_E',    'ESynE',     mV),
+        ('e_rev_I',    'ESynI',     mV),
+        ('tau_syn_E',  'tauE',      ms),
+        ('tau_syn_I',  'tauI',      ms),
+        ('i_offset',   'inject',    nA),
+    )
+    model = SingleCompHH
 
 
 

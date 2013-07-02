@@ -1,10 +1,17 @@
+"""
+MOOSE implementation of the PyNN API
+
+:copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
+:license: CeCILL, see LICENSE for details.
+"""
+
 import numpy
 import moose
 from pyNN import recording
 from . import simulator
-from .simulator import mV
+from .simulator import mV, uS
 
-SCALE_FACTORS = {'v': 1/mV, 'gsyn_exc': 1, 'gsyn_inh': 1}
+SCALE_FACTORS = {'v': 1/mV, 'gsyn_exc': 1/uS, 'gsyn_inh': 1/uS}
 VARIABLE_MAP = {'v': 'Vm', 'gsyn_exc': 'esyn.Gk', 'gsyn_inh': 'isyn.Gk'}
 
 
@@ -17,13 +24,15 @@ class Recorder(recording.Recorder):
         if "." in moose_var:
             component, moose_var = moose_var.split('.')
         for id in new_ids:
-            id._cell.tables[variable] = table = moose.Table(moose_var, id._cell)
+            id._cell.tables[variable] = table = moose.Table("%s/%s" % (id._cell.path,
+                                                                       variable))
             if component:
                 source = getattr(id._cell, component)
             else:
                 source = id._cell
             moose.connect(table, "requestData", source, "get_%s" % moose_var)
-            moose.useClock(simulator.RECORDING_CLOCK, table.path, 'process')
+            moose.useClock(simulator.RECORDING_TICK, table.path, 'process')
+            print "recording %s from %s to table %s" % (variable, id, table.path)
 
     def _get_all_signals(self, variable, ids, clear=False):
         scale_factor = SCALE_FACTORS[variable]
