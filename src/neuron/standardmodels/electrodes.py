@@ -10,7 +10,6 @@ Classes:
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id: electrodes.py 957 2011-05-03 13:44:15Z apdavison $
 """
 
 from neuron import h
@@ -18,6 +17,10 @@ import numpy
 from pyNN.standardmodels import electrodes, build_translations, StandardCurrentSource
 from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.neuron import simulator
+
+
+_current_sources = []  # if a CurrentSource is created but not assigned to a variable,
+                       # it will not persist, so we store a reference here
 
 
 class NeuronCurrentSource(StandardCurrentSource):
@@ -35,6 +38,7 @@ class NeuronCurrentSource(StandardCurrentSource):
         parameter_space.update(**parameters)
         parameter_space = self.translate(parameter_space)
         self.set_native_parameters(parameter_space)
+        _current_sources.append(self)
 
     @property
     def _h_amplitudes(self):

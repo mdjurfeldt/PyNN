@@ -11,7 +11,6 @@ where <simulator> is 'neuron', 'nest', etc
 Andrew Davison, UNIC, CNRS
 May 2006
 
-$Id$
 """
 
 from pyNN.utility import get_script_args, normalized_filename
@@ -34,7 +33,7 @@ connI = connect(spike_sourceI, ifcell, weight=0.02, receptor_type='inhibitory', 
 
 filename = normalized_filename("Results", "IF_cond_alpha", "pkl",
                                simulator_name)
-record('v', ifcell, filename, annotations={'script_name': __file__})
+record(['v', 'gsyn_exc'], ifcell, filename, annotations={'script_name': __file__})
 
 run(200.0)
 

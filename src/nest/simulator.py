@@ -19,7 +19,6 @@ modules.
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id$
 """
 
 import nest
@@ -52,9 +51,8 @@ class _State(common.control.BaseState):
         super(_State, self).__init__()
         self.initialized = False
         self.optimize = False
-        self.spike_precision = "on_grid"
+        self.spike_precision = "off_grid"
         self.verbosity = "warning"
-        self.default_recording_precision = 3
         self._cache_num_processes = nest.GetKernelStatus()['num_processes'] # avoids blocking if only some nodes call num_processes
                                                                             # do the same for rank?
         # allow NEST to erase previously written files (defaut with all the other simulators)
@@ -65,7 +63,7 @@ class _State(common.control.BaseState):
 
     @property
     def t(self):
-        return nest.GetKernelStatus('time')
+        return max(nest.GetKernelStatus('time') - self.dt, 0.0)  # note that we always simulate one time step past the requested time
 
     dt = nest_property('resolution', float)
 
@@ -127,6 +125,9 @@ class _State(common.control.BaseState):
             simtime += self.dt # we simulate past the real time by one time step, otherwise NEST doesn't give us all the recorded data
             self.running = True
         nest.Simulate(simtime)
+
+    def run_until(self, tstop):
+        self.run(tstop - self.t)
 
     def reset(self):
         nest.ResetNetwork()
@@ -224,12 +225,14 @@ class Connection(object):
     weight = property(_get_weight, _set_weight)
     delay  = property(_get_delay, _set_delay)
 
+
 def generate_synapse_property(name):
     def _get(self):
         return nest.GetStatus([self.id()], name)[0]
     def _set(self, val):
         nest.SetStatus([self.id()], name, val)
     return property(_get, _set)
+
 setattr(Connection, 'U', generate_synapse_property('U'))
 setattr(Connection, 'tau_rec', generate_synapse_property('tau_rec'))
 setattr(Connection, 'tau_facil', generate_synapse_property('tau_fac'))

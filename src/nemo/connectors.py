@@ -4,7 +4,6 @@ Connection method classes for the nemo module
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id: connectors.py 833 2010-11-26 11:56:38Z pierre $
 """
 from pyNN.space import Space
 from pyNN.random import RandomDistribution
@@ -15,9 +14,12 @@ from pyNN.connectors import AllToAllConnector, \
                             OneToOneConnector, \
                             FixedProbabilityConnector, \
                             DistanceDependentProbabilityConnector, \
+                            DisplacementDependentProbabilityConnector, \
+                            IndexBasedProbabilityConnector, \
                             FromListConnector, \
                             FromFileConnector, \
                             FixedNumberPreConnector, \
                             FixedNumberPostConnector, \
                             SmallWorldConnector, \
-                            CSAConnector
+                            CSAConnector, \
+                            CloneConnector

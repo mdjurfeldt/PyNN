@@ -5,7 +5,6 @@ NEST v2 implementation of the PyNN API.
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id$
 """
 
 import numpy
@@ -18,8 +17,8 @@ from . import simulator
 from pyNN import common, recording, errors, space, __doc__
 
 try:
-    nest.GetStatus([numpy.int64(0)])
-except NESTError:
+    nest.GetStatus([numpy.int32(0)])
+except nest.NESTError:
     raise Exception("NEST built without NumPy support. Try rebuilding NEST after installing NumPy.")
 
 #if recording.MPI and (nest.Rank() != recording.mpi_comm.rank):
@@ -134,7 +133,8 @@ def end():
     simulator.state.tempdirs = []
     simulator.state.write_on_end = []
 
-run = common.build_run(simulator)
+run, run_until = common.build_run(simulator)
+run_for = run
 
 reset = common.build_reset(simulator)
 

@@ -123,7 +123,7 @@ class Projection(object):
         """
         Set connection attributes for all connections on the local MPI node.
 
-        Attribute names may be 'weights', 'delays', or the name of any parameter
+        Attribute names may be 'weight', 'delay', or the name of any parameter
         of a synapse dynamics model (e.g. 'U' for TsodyksMarkramSynapse).
 
         Each attribute value may be:
@@ -187,7 +187,7 @@ class Projection(object):
         indices of the pre- and post-synaptic cell followed by the attribute
         values in the order given in `attribute_names`. Example::
 
-            >>> prj.get(["weights", "delays"], format="list")[:5]
+            >>> prj.get(["weight", "delay"], format="list")[:5]
             [(TODO)]
 
         With array format, returns a tuple of 2D NumPy arrays, one for each
@@ -199,11 +199,14 @@ class Projection(object):
         value will be given, which makes some sense for weights, but is
         pretty meaningless for delays. Example::
 
-            >>> weights, delays = prj.get(["weights", "delays"], format="array")
+            >>> weights, delays = prj.get(["weight", "delay"], format="array")
             >>> weights.shape
             TODO
 
         TODO: document "with_address"
+        
+        Values will be expressed in the standard PyNN units (i.e. millivolts,
+        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
         """
         if isinstance(attribute_names, basestring):
             attribute_names = (attribute_names,)
@@ -219,8 +222,8 @@ class Projection(object):
             values = self._get_attributes_as_list(*names)
             if gather and self._simulator.state.num_processes > 1:
                 all_values = { self._simulator.state.mpi_rank: values }
-                all_values = recording.gather_dict(all_values)
-                if self._simulator.state.mpi_rank == 0:
+                all_values = recording.gather_dict(all_values, all=(gather=='all'))
+                if gather == 'all' or self._simulator.state.mpi_rank == 0:
                     values = reduce(operator.add, all_values.values())
             if not with_address and return_single:
                 values = [val[0] for val in values]
@@ -233,8 +236,8 @@ class Projection(object):
                 names      = ["presynaptic_index", "postsynaptic_index"] + names
                 values     = self._get_attributes_as_list(*names)
                 all_values = { self._simulator.state.mpi_rank: values }
-                all_values = recording.gather_dict(all_values)
-                if self._simulator.state.mpi_rank == 0:
+                all_values = recording.gather_dict(all_values, all=(gather=='all'))
+                if gather == 'all' or self._simulator.state.mpi_rank == 0:
                     tmp_values = reduce(operator.add, all_values.values())
                     values     = self._get_attributes_as_arrays(*attribute_names)
                     tmp_values = numpy.array(tmp_values)
@@ -281,21 +284,27 @@ class Projection(object):
     def getSynapseDynamics(self, parameter_name, format='list', gather=True):
         return self.get(parameter_name, format, gather, with_address=False)
 
-    def save(self, attribute_names, file, format='list', gather=True):
+    def save(self, attribute_names, file, format='list', gather=True, with_address=True):
         """
         Print synaptic attributes (weights, delays, etc.) to file. In the array
         format, zeros are printed for non-existent connections.
+        
+        Values will be expressed in the standard PyNN units (i.e. millivolts,
+        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
         """
         if attribute_names in ('all', 'connections'):
-            attribute_names = ['weight', 'delay'] # need to add synapse dynamics parameter names, if applicable
+            attribute_names = self.synapse_type.get_parameter_names()
         if isinstance(file, basestring):
             file = recording.files.StandardTextFile(file, mode='w')
-        all_values = self.get(attribute_names, format=format, gather=gather)
+        all_values = self.get(attribute_names, format=format, gather=gather, with_address=with_address)
         if format == 'array':
             all_values = [numpy.where(numpy.isnan(values), 0.0, values)
                           for values in all_values]
         if self._simulator.state.mpi_rank == 0:
-            file.write(all_values, {})
+            metadata = {"columns": attribute_names}
+            if with_address:
+                metadata["columns"] = ["i", "j"] + metadata["columns"]
+            file.write(all_values, metadata)
             file.close()
 
     @deprecated("save('all', file, format='list', gather=gather)")

@@ -4,7 +4,6 @@ Synapse Dynamics classes for nest
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id$
 """
 
 import nest
@@ -79,10 +78,7 @@ class TsodyksMarkramSynapse(synapses.TsodyksMarkramSynapse, NESTSynapseMixin):
         ('delay', 'delay'),
         ('U', 'U'),
         ('tau_rec', 'tau_rec'),
-        ('tau_facil', 'tau_fac'),
-        ('u0', 'u'),  # this could cause problems for reverse translation
-        ('x0', 'x' ), # (as for V_m) in cell models, since the initial value
-        ('y0', 'y')   # is not stored, only set.
+        ('tau_facil', 'tau_fac')
     )
     nest_name = 'tsodyks_synapse'
 
@@ -93,8 +89,6 @@ class AdditiveWeightDependence(synapses.AdditiveWeightDependence):
     translations = build_translations(
         ('w_max',     'Wmax',  1000.0), # unit conversion
         ('w_min',     'w_min_always_zero_in_NEST'),
-        ('A_plus',    'lambda'),
-        ('A_minus',   'alpha', 'A_minus/A_plus', 'alpha*lambda'),
     )
     possible_models = set(['stdp_synapse']) #,'stdp_synapse_hom'])
     extra_parameters = {
@@ -102,10 +96,10 @@ class AdditiveWeightDependence(synapses.AdditiveWeightDependence):
         'mu_minus': 0.0
     }
 
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01): # units?
+    def __init__(self, w_min=0.0, w_max=1.0):
         if w_min != 0:
             raise Exception("Non-zero minimum weight is not supported by NEST.")
-        synapses.AdditiveWeightDependence.__init__(self, w_min, w_max, A_plus, A_minus)
+        synapses.AdditiveWeightDependence.__init__(self, w_min, w_max)
 
 
 class MultiplicativeWeightDependence(synapses.MultiplicativeWeightDependence):
@@ -114,18 +108,16 @@ class MultiplicativeWeightDependence(synapses.MultiplicativeWeightDependence):
     translations = build_translations(
         ('w_max',     'Wmax',  1000.0), # unit conversion
         ('w_min',     'w_min_always_zero_in_NEST'),
-        ('A_plus',    'lambda'),
-        ('A_minus',   'alpha', 'A_minus/A_plus', 'alpha*lambda'),
     )
     possible_models = set(['stdp_synapse']) #,'stdp_synapse_hom'])
     extra_parameters = {
         'mu_plus': 1.0,
         'mu_minus': 1.0
     }
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01):
+    def __init__(self, w_min=0.0, w_max=1.0):
         if w_min != 0:
             raise Exception("Non-zero minimum weight is not supported by NEST.")
-        synapses.MultiplicativeWeightDependence.__init__(self, w_min, w_max, A_plus, A_minus)
+        synapses.MultiplicativeWeightDependence.__init__(self, w_min, w_max)
 
 
 class AdditivePotentiationMultiplicativeDepression(synapses.AdditivePotentiationMultiplicativeDepression):
@@ -134,8 +126,6 @@ class AdditivePotentiationMultiplicativeDepression(synapses.AdditivePotentiation
     translations = build_translations(
         ('w_max',     'Wmax',  1000.0), # unit conversion
         ('w_min',     'w_min_always_zero_in_NEST'),
-        ('A_plus',    'lambda'),
-        ('A_minus',   'alpha', 'A_minus/A_plus', 'alpha*lambda'),
     )
     possible_models = set(['stdp_synapse']) #,'stdp_synapse_hom'])
     extra_parameters = {
@@ -143,10 +133,10 @@ class AdditivePotentiationMultiplicativeDepression(synapses.AdditivePotentiation
         'mu_minus': 1.0
     }
 
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01):
+    def __init__(self, w_min=0.0, w_max=1.0):
         if w_min != 0:
             raise Exception("Non-zero minimum weight is not supported by NEST.")
-        synapses.AdditivePotentiationMultiplicativeDepression.__init__(self, w_min, w_max, A_plus, A_minus)
+        synapses.AdditivePotentiationMultiplicativeDepression.__init__(self, w_min, w_max)
 
 
 class GutigWeightDependence(synapses.GutigWeightDependence):
@@ -155,17 +145,15 @@ class GutigWeightDependence(synapses.GutigWeightDependence):
     translations = build_translations(
         ('w_max',     'Wmax',  1000.0), # unit conversion
         ('w_min',     'w_min_always_zero_in_NEST'),
-        ('A_plus',    'lambda'),
-        ('A_minus',   'alpha', 'A_minus/A_plus', 'alpha*lambda'),
         ('mu_plus',   'mu_plus'),
         ('mu_minus',  'mu_minus'),
     )
     possible_models = set(['stdp_synapse']) #,'stdp_synapse_hom'])
 
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01, mu_plus=0.5, mu_minus=0.5):
+    def __init__(self, w_min=0.0, w_max=1.0, mu_plus=0.5, mu_minus=0.5):
         if w_min != 0:
             raise Exception("Non-zero minimum weight is not supported by NEST.")
-        synapses.GutigWeightDependence.__init__(self, w_min, w_max, A_plus, A_minus)
+        synapses.GutigWeightDependence.__init__(self, w_min, w_max)
 
 
 class SpikePairRule(synapses.SpikePairRule):
@@ -174,5 +162,8 @@ class SpikePairRule(synapses.SpikePairRule):
     translations = build_translations(
         ('tau_plus',  'tau_plus'),
         ('tau_minus', 'tau_minus'), # defined in post-synaptic neuron
+        ('A_plus',    'lambda'),
+        ('A_minus',   'alpha', 'A_minus/A_plus', 'alpha*lambda'),
+
     )
     possible_models = set(['stdp_synapse']) #,'stdp_synapse_hom'])

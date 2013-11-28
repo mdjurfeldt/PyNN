@@ -78,6 +78,7 @@ class IndexPopulation(Population):
         self.first_id = 0
         self.last_id = self.size - 1
         self.all_cells = numpy.array([id for id in range(self.first_id, self.last_id+1)], MusicID)
+        self._mask_local = self.all_cells%simulator.state.num_processes==simulator.state.mpi_rank # round-robin distribution of cells between nodes
         for i in self.all_cells:
             self.all_cells[i] = MusicID (i)
             self.all_cells[i].parent = self

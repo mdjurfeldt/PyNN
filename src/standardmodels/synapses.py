@@ -31,6 +31,14 @@ class StaticSynapse(StandardSynapseType):
         'delay': None
     }
 
+class ElectricalSynapse(StandardSynapseType):
+    """
+    A bidirectional electrical synapse (gap junction) with fixed conductance
+    """
+       
+    default_parameters = {
+        'weight': 0.0 # the (bidirectional) conductance of the gap junction (uS) 
+    }
 
 class TsodyksMarkramSynapse(StandardSynapseType):
     """
@@ -50,8 +58,6 @@ class TsodyksMarkramSynapse(StandardSynapseType):
             depression time constant (ms).
         `tau_facil`:
             facilitation time constant (ms).
-        `u0`, `x0`, `y0`:
-            initial conditions.
     
     .. _`Tsodyks, Uziel and Markram (2000)`: http://www.jneurosci.org/content/20/1/RC50.long
     """
@@ -61,9 +67,6 @@ class TsodyksMarkramSynapse(StandardSynapseType):
         'U': 0.5,   # use parameter
         'tau_rec': 100.0, # depression time constant (ms)
         'tau_facil': 0.0,   # facilitation time constant (ms)
-        'u0': 0.0,  # }
-        'x0': 1.0,  # } initial values
-        'y0': 0.0   # }
     }
 
 
@@ -189,10 +192,9 @@ class STDPMechanism(StandardSynapseType):
 
 class AdditiveWeightDependence(STDPWeightDependence):
     """
-    The amplitude of the weight change is fixed for depression (`A_minus`)
-    and for potentiation (`A_plus`).
-    If the new weight would be less than `w_min` it is set to `w_min`. If it would
-    be greater than `w_max` it is set to `w_max`.
+    The amplitude of the weight change is independent of the current weight.
+    If the new weight would be less than `w_min` it is set to `w_min`. If it
+    would be greater than `w_max` it is set to `w_max`.
 
     Arguments:
         `w_min`:
@@ -200,26 +202,13 @@ class AdditiveWeightDependence(STDPWeightDependence):
             µS or nA.
         `w_max`:
             maximum synaptic weight.
-        `A_plus`:
-            synaptic weight increase as a fraction of `w_max` when the
-            pre-synaptic spike precedes the post-synaptic spike by an
-            infinitessimal amount.
-        `A_minus`:
-            synaptic weight decrease as a fraction of `w_max` when the
-            pre-synaptic spike lags the post-synaptic spike by an
-            infinitessimal amount.
     """
     default_parameters = {
         'w_min':   0.0,
         'w_max':   1.0,
-        'A_plus':  0.01,
-        'A_minus': 0.01
     }
 
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01): # units?
-        """
-        Create a new specification for the weight-dependence of an STDP rule.
-        """
+    def __init__(self, w_min=0.0, w_max=1.0):
         parameters = dict(locals())
         parameters.pop('self')
         STDPWeightDependence.__init__(self, **parameters)
@@ -237,26 +226,13 @@ class MultiplicativeWeightDependence(STDPWeightDependence):
             µS or nA.
         `w_max`:
             maximum synaptic weight.
-        `A_plus`:
-            synaptic weight increase as a fraction of `w_max-w` when the
-            pre-synaptic spike precedes the post-synaptic spike by an
-            infinitessimal amount.
-        `A_minus`:
-            synaptic weight decrease as a fraction of `w-w_min` when the
-            pre-synaptic spike lags the post-synaptic spike by an
-            infinitessimal amount.
     """
     default_parameters = {
         'w_min'  : 0.0,
         'w_max'  : 1.0,
-        'A_plus' : 0.01,
-        'A_minus': 0.01,
     }
 
-    def __init__(self, w_min=0.0, w_max=1.0, A_plus=0.01, A_minus=0.01):
-        """
-        Create a new specification for the weight-dependence of an STDP rule.
-        """
+    def __init__(self, w_min=0.0, w_max=1.0):
         parameters = dict(locals())
         parameters.pop('self')
         STDPWeightDependence.__init__(self, **parameters)
@@ -273,27 +249,14 @@ class AdditivePotentiationMultiplicativeDepression(STDPWeightDependence):
             µS or nA.
         `w_max`:
             maximum synaptic weight.
-        `A_plus`:
-            synaptic weight increase as a fraction of `w_max` when the
-            pre-synaptic spike precedes the post-synaptic spike by an
-            infinitessimal amount.
-        `A_minus`:
-            synaptic weight decrease as a fraction of `w-w_min` when the
-            pre-synaptic spike lags the post-synaptic spike by an
-            infinitessimal amount.
     """
 
     default_parameters = {
         'w_min'  : 0.0,
         'w_max'  : 1.0,
-        'A_plus' : 0.01,
-        'A_minus': 0.01,
     }
 
-    def __init__(self, w_min=0.0,  w_max=1.0, A_plus=0.01, A_minus=0.01):
-        """
-        Create a new specification for the weight-dependence of an STDP rule.
-        """
+    def __init__(self, w_min=0.0,  w_max=1.0):
         parameters = dict(locals())
         parameters.pop('self')
         STDPWeightDependence.__init__(self, **parameters)
@@ -310,14 +273,6 @@ class GutigWeightDependence(STDPWeightDependence):
             µS or nA.
         `w_max`:
             maximum synaptic weight.
-        `A_plus`:
-            synaptic weight increase as a fraction of `(w_max-w)^mu_plus`
-            when the pre-synaptic spike precedes the post-synaptic spike by an
-            infinitessimal amount.
-        `A_minus`:
-            synaptic weight decrease as a fraction of `(w-w_min)^mu_minus`
-            when the pre-synaptic spike lags the post-synaptic spike by an
-            infinitessimal amount.
         `mu_plus`:
             see above
         `mu_minus`:
@@ -327,19 +282,18 @@ class GutigWeightDependence(STDPWeightDependence):
     default_parameters = {
         'w_min'   : 0.0,
         'w_max'   : 1.0,
-        'A_plus'  : 0.01,
-        'A_minus' : 0.01,
         'mu_plus' : 0.5,
         'mu_minus': 0.5
     }
 
-    def __init__(self, w_min=0.0,  w_max=1.0, A_plus=0.01, A_minus=0.01, mu_plus=0.5, mu_minus=0.5):
+    def __init__(self, w_min=0.0,  w_max=1.0, mu_plus=0.5, mu_minus=0.5):
         """
         Create a new specification for the weight-dependence of an STDP rule.
         """
         parameters = dict(locals())
         parameters.pop('self')
         STDPWeightDependence.__init__(self, **parameters)
+
 
 # Not yet implemented for any module
 #class PfisterSpikeTripletRule(STDPTimingDependence):
@@ -349,24 +303,54 @@ class GutigWeightDependence(STDPWeightDependence):
 class SpikePairRule(STDPTimingDependence):
     """
     The amplitude of the weight change depends only on the relative timing of
-    spike pairs, not triplets, etc.
+    spike pairs, not triplets, etc. All possible spike pairs are taken into
+    account (cf Song and Abbott).
 
     Arguments:
         `tau_plus`:
             time constant of the positive part of the STDP curve, in milliseconds.
         `tau_minus`
             time constant of the negative part of the STDP curve, in milliseconds.
+        `A_plus`:
+            amplitude of the positive part of the STDP curve.
+        `A_minus`:
+            amplitude of the negative part of the STDP curve.
     """
 
     default_parameters = {
         'tau_plus':  20.0,
         'tau_minus': 20.0,
+        'A_plus' : 0.01,
+        'A_minus': 0.01,
     }
 
-    def __init__(self, tau_plus=20.0, tau_minus=20.0):
+    def __init__(self, tau_plus=20.0, tau_minus=20.0, A_plus=0.01, A_minus=0.01):
         """
         Create a new specification for the timing-dependence of an STDP rule.
         """
         parameters = dict(locals())
         parameters.pop('self')
         STDPTimingDependence.__init__(self, **parameters)
+
+
+class Vogels2011Rule(STDPTimingDependence):
+    """
+    Timing-dependence rule from 
+
+      Vogels TP, Sprekeler H, Zenke F, Clopath C, Gerstner W (2011)
+      Inhibitory plasticity balances excitation and inhibition in sensory
+      pathways and memory networks. Science 334:1569-73
+      http://dx.doi.org/10.1126/science.1211095
+  
+    Potentiation depends on the coincidence of pre- and post-synaptic spikes
+    but not on their order. Pre-synaptic spikes in the absence of post-
+    synaptic ones produce depression.
+    
+    Also see http://senselab.med.yale.edu/modeldb/ShowModel.asp?model=143751
+    """
+
+    default_parameters = {
+        'tau': 20.0,
+        'eta': 1e-10,
+        'rho': 3.0
+    }

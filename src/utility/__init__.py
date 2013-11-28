@@ -16,7 +16,6 @@ Functions:
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id$
 """
 
 # If there is a settings.py file on the path, defaults will be
@@ -33,6 +32,12 @@ import os
 from datetime import datetime
 import functools
 import numpy
+try:
+    from importlib import import_module
+except ImportError:  # Python 2.6
+    def import_module(name):
+        return __import__(name)
+    
 from pyNN.core import deprecated
 
 red     = 0010; green  = 0020; yellow = 0030; blue = 0040
@@ -100,6 +105,30 @@ def get_script_args(n_args, usage=''):
         usage = usage or "Script requires %d arguments, you supplied %d" % (n_args, len(args))
         raise Exception(usage)
     return args
+
+
+def get_simulator(*arguments):
+    """
+    Import and return a PyNN simulator backend module based on command-line
+    arguments.
+    
+    The simulator name should be the first positional argument. If your script
+    needs additional arguments, you can specify them as (name, help_text) tuples.
+    If you need more complex argument handling, you should use argparse
+    directly.
+    
+    Returns (simulator, command-line arguments)
+    """
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("simulator",
+                        help="neuron, nest, brian, pcsim or another backend simulator")
+    for argument in arguments:
+        arg_name, help_text = argument
+        parser.add_argument(arg_name, help=help_text)
+    args = parser.parse_args()
+    sim = import_module("pyNN.%s" % args.simulator)
+    return sim, args
 
 
 def init_logging(logfile, debug=False, num_processes=1, rank=0, level=None):
@@ -200,9 +229,11 @@ def normalized_filename(root, basename, extension, simulator, num_processes=None
                                            timestamp.strftime("%Y%m%d-%H%M%S"),
                                            extension))
 
-def connection_plot(connection_array):
+def connection_plot(projection):
+    connection_array = projection.get('weight', format='array')
     image = numpy.zeros_like(connection_array, dtype=str)
     image[connection_array > 0] = 'O'
+    image[connection_array == 0] = '.'
     image[numpy.isnan(connection_array)] = ' '
     return u'\n'.join([u''.join(row) for row in image])
 
@@ -216,6 +247,7 @@ class Timer(object):
 
     def __init__(self):
         self.start()
+        self.marks = []
 
     def start(self):
         """Start/restart timing."""
@@ -288,6 +320,14 @@ class Timer(object):
         return ', '.join([add_units(T[part], part)
                           for part in ('year', 'day', 'hour', 'minute', 'second')
                           if T[part]>0])
+
+    def mark(self, label):
+        """
+        Store the time since the last time since the last time
+        :meth:`elapsed_time()`, :meth:`diff()` or :meth:`mark()` was called,
+        together with the provided label, in the attribute 'marks'.
+        """
+        self.marks.append((label, self.diff()))
 
 
 class ProgressBar(object):

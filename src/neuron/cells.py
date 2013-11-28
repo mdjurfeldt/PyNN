@@ -5,7 +5,6 @@ Definition of cell classes for the neuron module.
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id$
 """
 
 from pyNN.models import BaseCellType
@@ -14,6 +13,7 @@ from neuron import h, nrn, hclass
 from simulator import state
 from math import pi
 import logging
+from .recording import recordable_pattern
 
 logger = logging.getLogger("PyNN")
 
@@ -36,7 +36,10 @@ def _new_property(obj_hierarchy, attr_name):
 
 
 class NativeCellType(BaseCellType):
-    pass
+    
+    def can_record(self, variable):
+        # crude check, could be improved
+        return bool(recordable_pattern.match(variable))
 
 
 class SingleCompartmentNeuron(nrn.Section):
@@ -267,6 +270,38 @@ class BretteGerstnerIF(LeakySingleCompartmentNeuron):
             seg.w = self.w_init
 
 
+class Izhikevich_(object):
+    
+    def __init__(self, a=0.02, b=0.2, c=-65.0, d=2.0, i_inj=0.0):
+        self.source_section = nrn.Section()
+        self.source = h.Izhikevich(0.5, sec=self.source_section)
+        self.a = a
+        self.b = b
+        self.c = c
+        self.d = d
+        self.i_inj = i_inj
+        self.excitatory = self.inhibitory = self.source
+        self.spike_times = h.Vector(0)
+        self.traces = {}
+        self.recording_time = 0
+        self.v_init = None
+        self.u_init = None
+        self.recordable = {'v': self.source._ref_vm,
+                           'u': self.source._ref_u}
+
+    a = _new_property('source', 'a')
+    b = _new_property('source', 'b')
+    c = _new_property('source', 'c')
+    d = _new_property('source', 'd')
+    i_inj = _new_property('source', 'i_inj')
+    
+    def memb_init(self):
+        assert self.v_init is not None
+        assert self.u_init is not None
+        self.source.vm = self.v_init
+        self.source.u = self.u_init
+
+
 class GsfaGrrIF(StandardIF):
     """docstring"""
 
@@ -324,6 +359,7 @@ class SingleCompartmentTraub(SingleCompartmentNeuron):
         SingleCompartmentNeuron.__init__(self, syn_type, syn_shape, c_m, i_offset,
                                          tau_e, tau_i, e_e, e_i)
         self.source = self.seg._ref_v
+        self.source_section = self
         self.rec = h.NetCon(self.source, None, sec=self)
         self.insert('k_ion')
         self.insert('na_ion')
@@ -399,3 +435,11 @@ class VectorSpikeSource(hclass(h.VecStim)):
 
     spike_times = property(fget=_get_spike_times,
                            fset=_set_spike_times)
+
+    def clear_past_spikes(self):
+        """If previous recordings are cleared, need to remove spikes from before the current time."""
+        end = self._spike_times.indwhere(">", h.t)
+        if end > 0:
+            self._spike_times.remove(0, end-1)  # range is inclusive
+
+    

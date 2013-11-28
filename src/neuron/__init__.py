@@ -5,12 +5,9 @@ nrnpython implementation of the PyNN API.
 :copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
-$Id:__init__.py 188 2008-01-29 10:03:59Z apdavison $
 """
 
 from __future__ import absolute_import
-
-__version__ = "$Rev: $"
 
 from itertools import repeat
 import sys, os
@@ -51,7 +48,9 @@ logger = logging.getLogger("PyNN")
 
 def list_standard_models():
     """Return a list of all the StandardCellType classes available for this simulator."""
-    return [obj.__name__ for obj in globals().values() if isinstance(obj, type) and issubclass(obj, StandardCellType)]
+    return [obj.__name__ for obj in globals().values() if (isinstance(obj, type) and 
+                                                           issubclass(obj, StandardCellType) and
+                                                           obj is not StandardCellType)]
 
 # ==============================================================================
 #   Functions for simulation set-up and control
@@ -104,7 +103,8 @@ def end(compatible_output=True):
     #simulator.state.finalize()
     music_end() # not necessary once simulator.finalize is implemented
 
-run = common.build_run(simulator)
+run, run_until = common.build_run(simulator)
+run_for = run
 
 reset = common.build_reset(simulator)
 

@@ -2,10 +2,8 @@
 Network of integrate-and-fire neurons with distance-dependent connectivity and STDP.
 """
 
-from pyNN.utility import get_script_args
-usage = """Usage: python stdp_network.py <simulator>"""
-simulator_name, = get_script_args(1, usage)
-exec("import pyNN.%s as sim" % simulator_name)
+from pyNN.utility import get_simulator
+sim, options = get_simulator()
 from pyNN import space
 
 n_exc = 80
@@ -33,8 +31,9 @@ connectivity_parameters = {
 
 synaptic_parameters = {
     'excitatory': {
-        'timing_dependence': {'tau_plus': 20.0, 'tau_minus': 20.0},
-        'weight_dependence': {'w_min':0, 'w_max': 0.04, 'A_plus': 0.01, 'A_minus': 0.012},
+        'timing_dependence': {'tau_plus': 20.0, 'tau_minus': 20.0,
+                              'A_plus': 0.01, 'A_minus': 0.012},
+        'weight_dependence': {'w_min':0, 'w_max': 0.04},
         'weight': 0.01,
         'delay': '0.1+0.001*d'},
     'inhibitory': {'weight': 0.05, 'delay': '0.1+0.001*d'},

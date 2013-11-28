@@ -4,7 +4,6 @@ Very simple STDP test
 Andrew Davison, UNIC, CNRS
 January 2008
 
-$Id: simple_STDP.py 607 2009-05-19 15:04:35Z apdavison $
 """
 
 import numpy
@@ -19,9 +18,9 @@ setup(timestep=0.001, min_delay=0.1, max_delay=1.0)
 p1 = Population(1, SpikeSourceArray(spike_times=numpy.arange(1, 50, 1.0)))
 p2 = Population(1, IF_curr_exp())
 
-stdp_model = STDPMechanism(timing_dependence=SpikePairRule(tau_plus=20.0, tau_minus=20.0),
-                           weight_dependence=AdditiveWeightDependence(w_min=0, w_max=0.8,
-                                                                      A_plus=0.01, A_minus=0.012),
+stdp_model = STDPMechanism(timing_dependence=SpikePairRule(tau_plus=20.0, tau_minus=20.0,
+                                                           A_plus=0.01, A_minus=0.012),
+                           weight_dependence=AdditiveWeightDependence(w_min=0, w_max=0.8),
                            weight=0.48,
                            delay=0.2)
 

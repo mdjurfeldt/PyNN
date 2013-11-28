@@ -31,7 +31,9 @@ class Recorder(recording.Recorder):
                 self._record_state_variable(id._cell, variable)
 
     def _record_state_variable(self, cell, variable):
-        if variable == 'v':
+        if hasattr(cell, 'recordable') and variable in cell.recordable:
+            hoc_var = cell.recordable[variable]
+        elif variable == 'v':
             hoc_var = cell.source_section(0.5)._ref_v  # or use "seg.v"?
         elif variable == 'gsyn_exc':
             hoc_var = cell.esyn._ref_g
@@ -78,9 +80,13 @@ class Recorder(recording.Recorder):
         free up the memory.
         """
         for id in set.union(*self.recorded.values()):
-            for variable in id._cell.traces:
-                id._cell.traces[variable].resize(0)
-            id._cell.spike_times.resize(0)
+            if hasattr(id._cell, "traces"):
+                for variable in id._cell.traces:
+                    id._cell.traces[variable].resize(0)
+            if id._cell.rec is not None:
+                id._cell.spike_times.resize(0)
+            else:
+                id._cell.clear_past_spikes()
 
     @staticmethod
     def find_units(variable):

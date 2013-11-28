@@ -47,17 +47,14 @@ class IDMixin(object):
     # (e.g., int or long) and from IDMixin.
 
     def __getattr__(self, name):
+        if name == "parent":
+            raise Exception("parent is not set")
         try:
-            val = self.__getattribute__(name)
-        except AttributeError:
-            if name == "parent":
-                raise Exception("parent is not set")
-            try:
-                val = self.get_parameters()[name]
-            except KeyError:
-                raise errors.NonExistentParameterError(name,
-                                                       self.celltype.__class__.__name__,
-                                                       self.celltype.get_parameter_names())
+            val = self.get_parameters()[name]
+        except KeyError:
+            raise errors.NonExistentParameterError(name,
+                                                   self.celltype.__class__.__name__,
+                                                   self.celltype.get_parameter_names())
         return val
 
     def __setattr__(self, name, value):
@@ -259,6 +256,9 @@ class BasePopulation(object):
         """
         Get the values of the given parameters for every local cell in the
         population, or, if gather=True, for all cells in the population.
+        
+        Values will be expressed in the standard PyNN units (i.e. millivolts,
+        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
         """
         # if all the cells have the same value for a parameter, should
         # we return just the number, rather than an array?
@@ -312,7 +312,9 @@ class BasePopulation(object):
                 argument (the cell index) and returns a single value.
 
         Here, a "single value" may be either a single number or a list/array of
-        numbers (e.g. for spike times).
+        numbers (e.g. for spike times). Values should be expressed in the
+        standard PyNN units (i.e. millivolts, nanoamps, milliseconds,
+        microsiemens, nanofarads, event per second).
 
         Examples::
 
@@ -368,6 +370,9 @@ class BasePopulation(object):
             (4) mapping functions, where a mapping function accepts a single
                 argument (the cell index) and returns a single number.
 
+        Values should be expressed in the standard PyNN units (i.e. millivolts,
+        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
+
         Examples::
 
             p.initialize(v=-70.0)
@@ -382,7 +387,7 @@ class BasePopulation(object):
 
     def can_record(self, variable):
         """Determine whether `variable` can be recorded from this population."""
-        return (variable in self.celltype.recordable)
+        return self.celltype.can_record(variable)
 
     def record(self, variables, to_file=None):
         """
@@ -447,7 +452,8 @@ class BasePopulation(object):
         file as metadata.
         """
         logger.debug("Population %s is writing %s to %s [gather=%s, clear=%s]" % (self.label, variables, io, gather, clear))
-        self.recorder.write(variables, io, gather, self._record_filter, annotations=annotations)
+        self.recorder.write(variables, io, gather, self._record_filter, clear=clear, 
+                            annotations=annotations)
 
     def get_data(self, variables='all', gather=True, clear=False):
         """
@@ -493,8 +499,11 @@ class BasePopulation(object):
 
     def get_spike_counts(self, gather=True):
         """
-        Returns the number of spikes for each neuron.
+        Returns a dict containing the number of spikes for each neuron.
+        
+        The dict keys are neuron IDs, not indices.
         """
+        # arguably, we should use indices
         return self.recorder.count('spikes', gather, self._record_filter)
 
     @deprecated("mean_spike_count()")
@@ -610,6 +619,7 @@ class Population(BasePopulation):
         else:
             raise TypeError("cellclass must be an instance or subclass of BaseCellType, not a %s" % type(cellclass))
         self.annotations = {}
+        self.recorder = self._recorder_class(self)
         # Build the arrays of cell ids
         # Cells on the local node are represented as ID objects, other cells by integers
         # All are stored in a single numpy array for easy lookup by address
@@ -621,7 +631,6 @@ class Population(BasePopulation):
         all_initial_values = self.celltype.default_initial_values.copy()
         all_initial_values.update(initial_values)
         self.initialize(**all_initial_values)
-        self.recorder = self._recorder_class(self)
         Population._nPop += 1
 
     def __repr__(self):
@@ -1213,7 +1222,7 @@ class Assembly(object):
     def get_data(self, variables='all', gather=True, clear=False):
         """
         Return a Neo `Block` containing the data (spikes, state variables)
-        recorded from the Population.
+        recorded from the Assembly.
 
         `variables` - either a single variable name or a list of variable names
                       Variables must have been previously recorded, otherwise an
@@ -1224,7 +1233,7 @@ class Assembly(object):
         Otherwise, the Neo `Block` will contain only data from the cells
         simulated on the local node.
 
-        If `clear` is True, recorded data will be deleted from the `Population`.
+        If `clear` is True, recorded data will be deleted from the `Assembly`.
         """
         name = self.label
         description = self.describe()

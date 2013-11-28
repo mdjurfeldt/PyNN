@@ -37,6 +37,8 @@ def setup(timestep=DEFAULT_TIMESTEP, min_delay=DEFAULT_MIN_DELAY,
     """
     Initialises/reinitialises the simulator. Any existing network structure is
     destroyed.
+    
+    `timestep`, `min_delay` and `max_delay` should all be in milliseconds.
 
     `extra_params` contains any keyword arguments that are required by a given
     simulator but not by others.
@@ -58,11 +60,41 @@ def end(compatible_output=True):
 
 
 def build_run(simulator):
-    def run(simtime):
-        """Run the simulation for `simtime` ms."""
-        simulator.state.run(simtime)
+    def run_until(time_point, callbacks=None):
+        """
+        Run the simulation until `time_point` (in ms).
+        
+        `callbacks` is an optional list of callables, each of which should
+        accept the current time as an argument, and return the next time it
+        wishes to be called.
+        """
+        now = simulator.state.t
+        if time_point - now < -simulator.state.dt/2.0:  # allow for floating point error
+            raise ValueError("Time %g is in the past (current time %g)" % (time_point, now))
+        if callbacks:
+            callback_events = [(callback(simulator.state.t), callback)
+                               for callback in callbacks]
+            # todo: collapse multiple events that happen within the same timestep
+            while simulator.state.t + 1e-9 < time_point:
+                callback_events.sort(key=lambda cbe: cbe[0], reverse=True)
+                next, callback = callback_events.pop()
+                next = min(next, time_point)
+                simulator.state.run_until(next)
+                callback_events.append((callback(simulator.state.t), callback))
+        else:
+            simulator.state.run_until(time_point)
         return simulator.state.t
-    return run
+    def run(simtime, callbacks=None):
+        """
+        Run the simulation for `simtime` ms.
+        
+        `callbacks` is an optional list of callables, each of which should
+        accept the current time as an argument, and return the next time it
+        wishes to be called.
+        """
+        return run_until(simulator.state.t + simtime, callbacks)
+    return run, run_until
+
 
 def build_reset(simulator):
     def reset(annotations={}):
@@ -76,21 +108,22 @@ def build_reset(simulator):
         simulator.state.reset()
     return reset
 
+
 def build_state_queries(simulator):
     def get_current_time():
-        """Return the current time in the simulation."""
+        """Return the current time in the simulation (in milliseconds)."""
         return simulator.state.t
 
     def get_time_step():
-        """Return the integration time step."""
+        """Return the integration time step (in milliseconds)."""
         return simulator.state.dt
 
     def get_min_delay():
-        """Return the minimum allowed synaptic delay."""
+        """Return the minimum allowed synaptic delay (in milliseconds)."""
         return simulator.state.min_delay
 
     def get_max_delay():
-        """Return the maximum allowed synaptic delay."""
+        """Return the maximum allowed synaptic delay (in milliseconds)."""
         return simulator.state.max_delay
 
     def num_processes():
