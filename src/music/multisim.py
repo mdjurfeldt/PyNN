@@ -29,6 +29,8 @@ this_backend = None
 backends = { 'nest' : 'nest',
              'neuron' : 'neuron' }
 
+communicator = None
+
 
 def getBackend(name):
     exec('import pyNN.%s' % backends[name])
@@ -48,6 +50,10 @@ class Config(object):
         self.executable_path = binary
         self.args = args
 
+    def __repr__(self):
+        return "Config('%s', %d, '%s', %s)" % (self.name, self.num_nodes,
+                                               self.executable_path,
+                                               self.args)
 
 def setup(*configurations):
     """
@@ -57,7 +63,7 @@ def setup(*configurations):
     that simulator is running on the current MPI node) or a `ProxySimulator`
     object (if the requested simulator is not running on the current node).
     """
-    global this_backend, this_simulator, this_music_app
+    global this_backend, this_simulator, this_music_app, communicator
     
     # Parameter checking
     for config in configurations:
@@ -89,12 +95,13 @@ def setup(*configurations):
         else:
             # This seems to be an external application
             simulator = ExternalApplication ()
-
         application_map[simulator] = application
         if application.this:
             simulator.local = True
             this_simulator = simulator
             this_music_app = application
+            from mpi4py import MPI
+            communicator = MPI.COMM_WORLD.Split(application.number, MPI.COMM_WORLD.rank)
         else:
             simulator.local = False
 

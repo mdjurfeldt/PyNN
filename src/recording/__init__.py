@@ -46,7 +46,8 @@ def get_mpi_comm():
         from mpi4py import MPI
     except ImportError:
         raise Exception("Trying to gather data without MPI installed. If you are not running a distributed simulation, this is a bug in PyNN.")
-    return MPI.COMM_WORLD
+    from pyNN.music import multisim
+    return multisim.communicator or MPI.COMM_WORLD
 
 
 def rename_existing(filename):
@@ -89,6 +90,7 @@ def gather_dict(D):
 def gather_blocks(data):
     """Gather Neo Blocks"""
     mpi_comm = get_mpi_comm()
+    #print "gathering blocks on rank %d" % mpi_comm.rank
     assert isinstance(data, neo.Block)
     # for now, use gather_dict, which will probably be slow. Can optimize later
     D = {mpi_comm.rank: data}
