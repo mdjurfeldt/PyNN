@@ -20,11 +20,12 @@ def music_export(population, port_name):
     # support a params dict for the connections at the moment. Once
     # that variant exists, we don't have to iterate here ourselves
     # anymore
-    channel = 0
-    for pre in population.all():
-        conn_params = {"music_channel": channel}
-        nest.Connect([pre], music_proxy, conn_params)
-        channel += 1
+    n_proc = simulator.state.num_processes
+    rank = simulator.state.mpi_rank
+    for channel, pre in enumerate(population.all()):
+        if not population.celltype.always_local or channel%n_proc == rank:  # this seems like a hack. I think NEST should take care of this.
+            conn_params = {"music_channel": channel}
+            nest.Connect([pre], music_proxy, conn_params)
 
 
 class MusicProxyCellType(BaseCellType):
