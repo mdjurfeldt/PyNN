@@ -16,7 +16,6 @@ def music_export(population, port_name):
     """
     music_proxy = nest.Create("music_event_out_proxy",
                               params={"port_name": port_name})
-
     # We can't use PyNEST's ConvergentConnect here, as it does not
     # support a params dict for the connections at the moment. Once
     # that variant exists, we don't have to iterate here ourselves
@@ -66,6 +65,7 @@ class MusicProjection(Projection):
         """
         params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
         pre_pop = MusicPopulation(width, MusicProxyCellType(params))
+        nest.SetAcceptableLatency(port, 500.0)
         Projection.__init__(self, pre_pop, postsynaptic_population,
                             connector, synapse_type, source=source,
                             receptor_type=receptor_type, space=space,
