@@ -1,7 +1,7 @@
 
 from nose.tools import assert_almost_equal, assert_raises
 from pyNN.utility import assert_arrays_equal, assert_arrays_almost_equal
-from registry import register
+from .registry import register
 
 
 @register()
@@ -85,7 +85,7 @@ test_setup.__test__ = False
 
 @register()
 def test_run_until(sim):
-    sim.setup(time_step=0.1)
+    sim.setup(timestep=0.1)
     p = sim.Population(1, sim.IF_cond_exp())
     sim.run_until(12.7)
     assert_almost_equal(sim.get_current_time(), 12.7, 10)

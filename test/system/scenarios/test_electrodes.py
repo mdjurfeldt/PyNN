@@ -1,8 +1,9 @@
 
 
 from nose.tools import assert_equal
+from numpy.testing import assert_array_equal
 import quantities as pq
-from registry import register
+from .registry import register
 
 
 @register(exclude=["pcsim", "nemo"])
@@ -39,7 +40,7 @@ def ticket226(sim):
     Check that the start time of DCSources is correctly taken into account
     http://neuralensemble.org/trac/PyNN/ticket/226)
     """
-    sim.setup(timestep=0.1)
+    sim.setup(timestep=0.1, min_delay=0.1)
 
     cell = sim.Population(1, sim.IF_curr_alpha(tau_m=20.0, cm=1.0, v_rest=-60.0,
                                                v_reset=-60.0))
@@ -56,11 +57,10 @@ def ticket226(sim):
     assert v_10p1 > -59.99*pq.mV, v_10p1
 
 
-
 @register()
 def issue165(sim):
     """Ensure that anonymous current sources are not lost."""
-    sim.setup(time_step=0.1)
+    sim.setup(timestep=0.1)
     p = sim.Population(1, sim.IF_cond_exp())
     p.inject(sim.DCSource(amplitude=1.0, start=10.0, stop=20.0))
     p.record('v')
@@ -71,9 +71,34 @@ def issue165(sim):
     assert data[150, 0] > -65.0
 
 
+@register()
+def issue321(sim):
+    """Check that non-zero currents at t=0 are taken into account."""
+    sim.setup(timestep=0.1, min_delay=0.1)
+    cells = sim.Population(3, sim.IF_curr_alpha(tau_m=20.0, cm=1.0, v_rest=-60.0,
+                                               v_reset=-60.0))
+    cells.initialize(v=-60.0)
+    cells[0].i_offset = 1.0
+    inj1 = sim.DCSource(amplitude=1.0, start=0.0)
+    inj2 = sim.StepCurrentSource(times=[0.0], amplitudes=[1.0])
+    cells[1].inject(inj1)
+    cells[2].inject(inj2)
+    cells.record_v()
+    sim.run(20.0)
+    v = cells.get_data().segments[0].filter(name='v')[0]
+    sim.end()
+    # the DCSource and StepCurrentSource should be equivalent
+    assert_array_equal(v[:, 1], v[:, 2])
+    # Ideally, the three cells should have identical traces, but in
+    # practice there is always a delay with NEST until the current from
+    # a current generator kicks in
+    assert abs((v[-3:, 1] - v[-3:, 0]).max()) < 0.2
+
+
 if __name__ == '__main__':
     from pyNN.utility import get_simulator
     sim, args = get_simulator()
     test_changing_electrode(sim)
     ticket226(sim)
     issue165(sim)
+    issue321(sim)

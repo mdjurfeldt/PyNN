@@ -1,9 +1,19 @@
 """
 Plot graphs showing the results of running the VAbenchmarks.py script.
 
-Usage:
+Usage: VAbenchmark_graphs.py [-h] [-s SORT] [-o OUTPUT_FILE] [-a ANNOTATION]
+                             datafile [datafile ...]
 
-    python VAbenchmark_graphs2.py [-h] [-o OUTPUT_FILE] [-a ANNOTATION] datafile [datafile ...]
+positional arguments:
+  datafile              a list of data files in a Neo-supported format
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SORT, --sort SORT  field to sort by (default='simulator')
+  -o OUTPUT_FILE, --output-file OUTPUT_FILE
+                        output filename
+  -a ANNOTATION, --annotation ANNOTATION
+                        additional annotation (optional)
 
 """
 
@@ -48,7 +58,7 @@ def plot_vm_traces(panel, segment, label, hide_axis_labels=False):
         sorted_channels = sorted(array.channel_index)
         for j in range(2):
             i = array.channel_index.tolist().index(j)
-            print "plotting '%s' for %s" % (array.name, label)
+            print("plotting '%s' for %s" % (array.name, label))
             col = 'rbgmck'[j%6]
             plot_signal(panel, array, i, colour=col, linewidth=1, label=label,
                         fake_aps=-50*mV, hide_axis_labels=hide_axis_labels)
@@ -56,7 +66,7 @@ def plot_vm_traces(panel, segment, label, hide_axis_labels=False):
 
 
 def plot_spiketrains(panel, segment, label, hide_axis_labels=False):
-    print "plotting spikes for %s" % label
+    print("plotting spikes for %s" % label)
     for spiketrain in segment.spiketrains:
         y = np.ones_like(spiketrain) * spiketrain.annotations['source_id']
         panel.plot(spiketrain, y, '.', markersize=0.2)
@@ -66,7 +76,7 @@ def plot_spiketrains(panel, segment, label, hide_axis_labels=False):
 
 
 def plot_isi_hist(panel, segment, label, hide_axis_labels=False):
-    print "plotting ISI histogram (%s)" % label
+    print("plotting ISI histogram (%s)" % label)
     bin_width = 0.2
     bins_log = np.arange(0, 8, 0.2)
     bins = np.exp(bins_log)
@@ -84,11 +94,12 @@ def plot_isi_hist(panel, segment, label, hide_axis_labels=False):
 
 
 def plot_cvisi_hist(panel, segment, label, hide_axis_labels=False):
-    print "plotting CV(ISI) histogram (%s)" % label
+    print("plotting CV(ISI) histogram (%s)" % label)
     def cv_isi(spiketrain):
         isi = np.diff(np.array(spiketrain))
         return np.std(isi)/np.mean(isi)
-    cvs = np.fromiter((cv_isi(st) for st in segment.spiketrains), dtype=float)
+    cvs = np.fromiter((cv_isi(st) for st in segment.spiketrains if st.size > 2),
+                      dtype=float)
     bin_width = 0.1
     bins = np.arange(0, 2, bin_width)
     cvhist, bins = np.histogram(cvs[~np.isnan(cvs)], bins)
@@ -112,8 +123,8 @@ def sort_by_annotation(name, objects):
 def plot(datafiles, output_file, sort_by='simulator', annotation=None):
     blocks = [get_io(datafile).read_block() for datafile in datafiles]
     # note: Neo needs a pretty printer that is not tied to IPython
-    for block in blocks:
-        print (block.describe())
+    #for block in blocks:
+    #    print(block.describe())
     script_name = blocks[0].annotations['script_name']
     for block in blocks[1:]:
         assert block.annotations['script_name'] == script_name
@@ -124,6 +135,7 @@ def plot(datafiles, output_file, sort_by='simulator', annotation=None):
         'axes.labelsize': 'small',
         'legend.fontsize': 'small',
         'font.size': 8,
+        'savefig.dpi': 200,
     }
     plt.rcParams.update(fig_settings)
     CM=1/2.54
@@ -132,7 +144,7 @@ def plot(datafiles, output_file, sort_by='simulator', annotation=None):
 
     sorted_blocks = sort_by_annotation(sort_by, blocks)
     hide_axis_labels = False
-    for k, (label, block_list) in enumerate(sorted_blocks.iteritems()):
+    for k, (label, block_list) in enumerate(sorted_blocks.items()):
         segments = {}
         for block in block_list:
             for name in ("exc", "inh"):
@@ -161,7 +173,7 @@ def main():
     parser.add_argument("datafiles", metavar="datafile", nargs="+",
                         help="a list of data files in a Neo-supported format")
     parser.add_argument("-s", "--sort", default="simulator",
-                        help="field to sort by (default='%(default)s')")
+                        help="field to sort by (default='%(default)s' - also try 'mpi_processes')")
     parser.add_argument("-o", "--output-file", default="output.png",
                         help="output filename")
     parser.add_argument("-a", "--annotation", help="additional annotation (optional)")

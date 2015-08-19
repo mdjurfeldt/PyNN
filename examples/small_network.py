@@ -2,8 +2,16 @@
 """
 Small network created with the Population and Projection classes
 
-Andrew Davison, UNIC, CNRS
-May 2006
+
+Usage: random_numbers.py [-h] [--plot-figure] [--debug DEBUG] simulator
+
+positional arguments:
+  simulator      neuron, nest, brian or another backend simulator
+
+optional arguments:
+  -h, --help     show this help message and exit
+  --plot-figure  plot the simulation results to a file
+  --debug DEBUG  print debugging information
 
 """
 
@@ -12,7 +20,7 @@ from pyNN.utility import get_simulator, init_logging, normalized_filename
 from pyNN.parameters import Sequence
 from pyNN.random import RandomDistribution as rnd
 
-sim, options = get_simulator(("--plot-figure", "Plot the simulation results to a file."),
+sim, options = get_simulator(("--plot-figure", "Plot the simulation results to a file.", {"action": "store_true"}),
                              ("--debug", "Print debugging information"))
 
 if options.debug:
@@ -63,9 +71,8 @@ spike_source.record('spikes')
 cells.record('spikes')
 cells[0:2].record(('v', 'gsyn_exc'))
 
-input_conns = sim.Projection(spike_source, cells, sim.FixedProbabilityConnector(0.5), sim.StaticSynapse())
-input_conns.setWeights(w)
-input_conns.setDelays(syn_delay)
+syn = sim.StaticSynapse(weight=w,delay=syn_delay)
+input_conns = sim.Projection(spike_source, cells, sim.FixedProbabilityConnector(0.5), syn)
 
 # === Run simulation ===========================================================
 
@@ -75,10 +82,11 @@ filename = normalized_filename("Results", "small_network", "pkl",
                                options.simulator, sim.num_processes())
 cells.write_data(filename, annotations={'script_name': __file__})
 
-print "Mean firing rate: ", cells.mean_spike_count()*1000.0/simtime, "Hz"
+print("Mean firing rate: ", cells.mean_spike_count()*1000.0/simtime, "Hz")
 
 if options.plot_figure:
     from pyNN.utility.plotting import Figure, Panel
+    figure_filename = filename.replace("pkl", "png")
     data = cells.get_data().segments[0]
     vm = data.filter(name="v")[0]
     gsyn = data.filter(name="gsyn_exc")[0]
@@ -86,7 +94,9 @@ if options.plot_figure:
         Panel(vm, ylabel="Membrane potential (mV)"),
         Panel(gsyn, ylabel="Synaptic conductance (uS)"),
         Panel(data.spiketrains, xlabel="Time (ms)", xticks=True),
-    ).save(options.plot_figure)
+        annotations="Simulated with %s" % options.simulator.upper()
+    ).save(figure_filename)
+    print(figure_filename)
 
 # === Clean up and quit ========================================================
 

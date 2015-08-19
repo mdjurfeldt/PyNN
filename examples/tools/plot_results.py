@@ -24,7 +24,7 @@ plt.ion() #.rcParams['interactive'] = True
 example = sys.argv[1]
 
 blocks = {}
-for simulator in 'PCSIM', 'NEST', 'NEURON', 'Brian', 'MOOSE', 'Nemo':
+for simulator in 'MOCK', 'NEST', 'NEURON', 'Brian', 'MOOSE', 'Nemo':
     pattern = "Results/%s_*%s.*" % (example, simulator.lower())
     datafiles = glob.glob(pattern)
     if datafiles:
@@ -35,10 +35,10 @@ for simulator in 'PCSIM', 'NEST', 'NEURON', 'Brian', 'MOOSE', 'Nemo':
                 blocks[root] = {}
             blocks[root][simulator] = get_io(datafile).read_block()
     else:
-        print "No data found for pattern %s" % pattern
+        print("No data found for pattern %s" % pattern)
 
-print "-"*79
-print example
+print("-"*79)
+print(example)
 from pprint import pprint
 pprint(blocks)
 

@@ -9,9 +9,11 @@
 *.orig
 .project
 .pydevproject
+.spyderproject
 .settings
 *.tmp*
 *.swp
+.idea
 
 # Compiled source
 *.py[ocd]
@@ -22,12 +24,16 @@ i686
 # Python files
 build
 dist
+MANIFEST
 doc/_build
+doc/images/examples
+doc/examples/*.txt
 # Egg metadata
 *.egg-info
 *.egg
 *.EGG
 *.EGG-INFO
+*.pkl
 
 # OS generated files
 .directory
@@ -43,3 +49,7 @@ cover
 # files from running examples
 examples/Results
 examples/tools/Results
+
+# Other
+*.btr
+*.log

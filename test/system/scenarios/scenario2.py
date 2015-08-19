@@ -1,7 +1,7 @@
 
 import numpy
 from nose.tools import assert_equal
-from registry import register
+from .registry import register
 
 @register(exclude=["moose", "nemo"])
 def scenario2(sim):
@@ -27,7 +27,7 @@ def scenario2(sim):
     cell_params = {"tau_m": tau_m, "v_rest": 0.0, "v_reset": 0.0,
                    "tau_refrac": 100.0, "v_thresh": v_thresh, "cm": cm}
     I0 = (v_thresh*cm)/tau_m
-    sim.setup(timestep=0.01, spike_precision="off_grid")
+    sim.setup(timestep=0.01, min_delay=0.1, spike_precision="off_grid")
     neurons = sim.Population(n, sim.IF_curr_exp(**cell_params))
     neurons.initialize(v=0.0)
     I = numpy.arange(I0, I0+1.0, 1.0/n)
@@ -51,7 +51,7 @@ def scenario2(sim):
     a = spike_times = [numpy.array(st)[0] for st in spiketrains[1:]]
     b = expected_spike_times[1:]
     max_error = abs((a-b)/b).max()
-    print "max error =", max_error
+    print("max error =", max_error)
     assert max_error < 0.005, max_error
     sim.end()
     return a,b, spike_times

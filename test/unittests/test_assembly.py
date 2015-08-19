@@ -2,7 +2,7 @@
 Tests of the common implementation of the Assembly class, using the pyNN.mock
 backend.
 
-:copyright: Copyright 2006-2013 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -11,76 +11,107 @@ try:
 except ImportError:
     import unittest
 import numpy
+import sys
 import quantities as pq
 from numpy.testing import assert_array_equal, assert_array_almost_equal
-from mock import Mock, patch
+try:
+    from unittest.mock import Mock, patch
+except ImportError:
+    from mock import Mock, patch
+try:
+    basestring
+except NameError:
+    basestring = str
 from .mocks import MockRNG
 import pyNN.mock as sim
+from pyNN.parameters import Sequence
 
+from .backends.registry import register_class, register
 
+def setUp():
+    pass
+
+def tearDown():
+    pass
+    
+@register_class()
 class AssemblyTest(unittest.TestCase):
 
-    def setUp(self):
-        sim.setup()
+    def setUp(self, sim=sim, **extra):
+        sim.setup(**extra)
 
-    def test_create_with_zero_populations(self):
+    def tearDown(self, sim=sim):
+        sim.end()
+        
+    @register()
+    def test_create_with_zero_populations(self, sim=sim):
         a = sim.Assembly()
         self.assertEqual(a.populations, [])
         self.assertIsInstance(a.label, basestring)
 
-    def test_create_with_one_population(self):
+    @register()
+    def test_create_with_one_population(self, sim=sim):
         p = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p)
         self.assertEqual(a.populations, [p])
         self.assertIsInstance(a.label, basestring)
 
-    def test_create_with_two_populations(self):
+    @register()
+    def test_create_with_two_populations(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         self.assertEqual(a.populations, [p1, p2])
         self.assertEqual(a.label, "test")
     
-    def test_create_with_non_population_should_raise_Exception(self):
+    @register()
+    def test_create_with_non_population_should_raise_Exception(self, sim=sim):
         self.assertRaises(TypeError, sim.Assembly, [1, 2, 3])
     
-    def test_size_property(self):
+    @register()
+    def test_size_property(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         self.assertEqual(a.size, p1.size + p2.size)
     
-    def test_positions_property(self):
+    @register()
+    def test_positions_property(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         assert_array_equal(a.positions, numpy.concatenate((p1.positions, p2.positions), axis=1))
     
-    def test__len__(self):
+    @register()
+    def test__len__(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         self.assertEqual(len(a), len(p1) + len(p2))
     
-    def test_local_cells(self):
+    @register()
+    def test_local_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         assert_array_equal(a.local_cells, numpy.append(p1.local_cells, p2.local_cells))
     
-    def test_all_cells(self):
+    @register()
+    def test_all_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         assert_array_equal(a.all_cells, numpy.append(p1.all_cells, p2.all_cells))
     
-    def test_iter(self):
+    @register()
+    def test_iter(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
         assembly_ids = [id for id in a]
     
-    def test__add__population(self):
+    @register()
+    def test__add__population(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a1 = sim.Assembly(p1)
@@ -89,7 +120,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a1.populations, [p1])
         self.assertEqual(a2.populations, [p1, p2])
     
-    def test__add__assembly(self):
+    @register()
+    def test__add__assembly(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
@@ -98,14 +130,16 @@ class AssemblyTest(unittest.TestCase):
         a3 = a1 + a2
         self.assertEqual(a3.populations, [p1, p2, p3]) # or do we want [p1, p2, p3]?
     
-    def test_add_inplace_population(self):
+    @register()
+    def test_add_inplace_population(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1)
         a += p2
         self.assertEqual(a.populations, [p1, p2])
     
-    def test_add_inplace_assembly(self):
+    @register()
+    def test_add_inplace_assembly(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
@@ -114,14 +148,16 @@ class AssemblyTest(unittest.TestCase):
         a1 += a2
         self.assertEqual(a1.populations, [p1, p2, p3])
     
-    def test_add_invalid_object(self):
+    @register()
+    def test_add_invalid_object(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2)
         self.assertRaises(TypeError, a.__add__, 42)
         self.assertRaises(TypeError, a.__iadd__, 42)
     
-    def test_initialize(self):
+    @register()
+    def test_initialize(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2)
@@ -129,14 +165,16 @@ class AssemblyTest(unittest.TestCase):
         a.initialize(v=v_init)
         assert_array_equal(p2.initial_values['v'].evaluate(simplify=True), v_init)
     
-    def test_describe(self):
+    @register()
+    def test_describe(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2)
         self.assertIsInstance(a.describe(), basestring)
         self.assertIsInstance(a.describe(template=None), dict)
     
-    def test_get_population(self):
+    @register()
+    def test_get_population(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p1.label = "pop1"
         p2 = sim.Population(11, sim.IF_cond_exp())
@@ -146,7 +184,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a.get_population("pop2"), p2)
         self.assertRaises(KeyError, a.get_population, "foo")
     
-    def test_all_cells(self):
+    @register()
+    def test_all_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
@@ -157,7 +196,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a.all_cells[-1], p3.all_cells[-1])
         assert_array_equal(a.all_cells, numpy.append(p1.all_cells, (p2.all_cells, p3.all_cells)))
     
-    def test_local_cells(self):
+    @register()
+    def test_local_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
@@ -168,7 +208,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a.local_cells[-1], p3.local_cells[-1])
         assert_array_equal(a.local_cells, numpy.append(p1.local_cells, (p2.local_cells, p3.local_cells)))
     
-    def test_mask_local(self):
+    @register()
+    def test_mask_local(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
@@ -180,7 +221,8 @@ class AssemblyTest(unittest.TestCase):
         assert_array_equal(a._mask_local, numpy.append(p1._mask_local, (p2._mask_local, p3._mask_local)))
         assert_array_equal(a.local_cells, a.all_cells[a._mask_local])
     
-    def test_save_positions(self):
+    @register()
+    def test_save_positions(self, sim=sim):
         import os
         p1 = sim.Population(2, sim.IF_cond_exp())
         p2 = sim.Population(2, sim.IF_cond_exp())
@@ -197,14 +239,16 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(output_file.write.call_args[0][1], {'assembly': a.label})
         # arguably, the first column should contain indices, not ids.
 
-    def test_repr(self):
+    @register()
+    def test_repr(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         p3 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, p3)
         self.assertIsInstance(repr(a), str)
 
-    def test_ids_should_not_be_counted_twice(self):
+    @register()
+    def test_ids_should_not_be_counted_twice(self, sim=sim):
         p = sim.Population(11, sim.IF_cond_exp())
         pv1 = p[0:5]
         a1 = sim.Assembly(p, pv1)
@@ -215,34 +259,46 @@ class AssemblyTest(unittest.TestCase):
         #a3 = sim.Assembly(pv1, pv2)
         #self.assertEqual(a3.size, 7)
 
-    def test_all_iterator(self):
+    @register()
+    def test_all_iterator(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
         a = sim.Assembly(p1, p2, p3)
-        assert hasattr(a.all(), "next")
+        assert hasattr(a.all(), "next") or hasattr(a.all(), "__next__")  # 2nd form is for Py3
         ids = list(a.all())
         self.assertEqual(ids, p1.all_cells.tolist() + p2.all_cells.tolist() + p3.all_cells.tolist())
 
-    def test__homogeneous_synapses(self):
+    @register(exclude=['hardware.brainscales'])
+    def test__homogeneous_synapses(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
-        p3 = sim.Population(3, sim.IF_curr_exp())
         a1 = sim.Assembly(p1, p2)
-        a2 = sim.Assembly(p1, p3)
         self.assertTrue(a1._homogeneous_synapses)
+        
+    @register(exclude=['hardware.brainscales'])
+    def test__non_homogeneous_synapses(self, sim=sim):
+        p1 = sim.Population(11, sim.IF_cond_exp())
+        p3 = sim.Population(3, sim.IF_curr_exp())
+        a2 = sim.Assembly(p1, p3)
         self.assertFalse(a2._homogeneous_synapses)
 
-    def test_conductance_based(self):
+    @register(exclude=['hardware.brainscales'])
+    def test_conductance_based(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
-        p3 = sim.Population(3, sim.IF_curr_exp())
         a1 = sim.Assembly(p1, p2)
-        a2 = sim.Assembly(p1, p3)
         self.assertTrue(a1.conductance_based)
+        
+    @register(exclude=['hardware.brainscales'])
+    def test_not_conductance_based(self, sim=sim):
+        p1 = sim.Population(11, sim.IF_cond_exp())
+        p3 = sim.Population(3, sim.IF_curr_exp())
+        a2 = sim.Assembly(p1, p3)
         self.assertFalse(a2.conductance_based)
 
-    def test_first_and_last_id(self):
+    @register()
+    def test_first_and_last_id(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -250,7 +306,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a.first_id, p1[0])
         self.assertEqual(a.last_id, p3[-1])
 
-    def test_id_to_index(self):
+    @register()
+    def test_id_to_index(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -260,14 +317,16 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a.id_to_index(p2[0]), 14)
         assert_array_equal(a.id_to_index([p1[0], p2[0], p3[0]]), [3, 14, 0])
     
-    def test_id_to_index_with_nonexistent_id(self):
+    @register()
+    def test_id_to_index_with_nonexistent_id(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
         a = sim.Assembly(p3, p1, p2)
         self.assertRaises(IndexError, a.id_to_index, p3.last_id+1)
 
-    def test_getitem_int(self):
+    @register()
+    def test_getitem_int(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -276,7 +335,8 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(a[3], p1[0])
         self.assertEqual(a[14], p2[0])
 
-    def test_getitem_slice(self):
+    @register()
+    def test_getitem_slice(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -290,7 +350,8 @@ class AssemblyTest(unittest.TestCase):
         assert_array_equal(a2.populations[0].all_cells, p3[2:].all_cells)
         assert_array_equal(a2.populations[1].all_cells, p1[:5].all_cells)
 
-    def test_getitem_array(self):
+    @register()
+    def test_getitem_array(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -305,7 +366,8 @@ class AssemblyTest(unittest.TestCase):
         assert_array_equal(a2.populations[1].all_cells, p1[7:9].all_cells)
         assert_array_equal(a2.populations[2].all_cells, p2[3, 5].all_cells)
 
-    def test_sample(self):
+    @register()
+    def test_sample(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(6, sim.IF_cond_alpha())
         p3 = sim.Population(3, sim.IF_curr_exp())
@@ -316,7 +378,8 @@ class AssemblyTest(unittest.TestCase):
         assert_array_equal(a1.populations[0].all_cells, p1[11:6:-1])
         assert_array_equal(a1.populations[1].all_cells, p2[6::-1])
 
-    def test_get_data_with_gather(self):
+    @register(exclude=['hardware.brainscales'])
+    def test_get_data_with_gather(self, sim=sim):
         t1 = 12.3
         t2 = 13.4
         t3 = 14.5
@@ -358,7 +421,8 @@ class AssemblyTest(unittest.TestCase):
         #assert_array_equal(seg1.spiketrains[7],
         #                   numpy.array([a.first_id+7, a.first_id+7+5]) % t3)
 
-    def test_printSpikes(self):
+    @register()
+    def test_printSpikes(self, sim=sim):
         # TODO: implement assert_deprecated
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
@@ -369,7 +433,8 @@ class AssemblyTest(unittest.TestCase):
         a.printSpikes("foo.txt")
         a.write_data.assert_called_with('foo.txt', 'spikes', True)
 
-    def test_getSpikes(self):
+    @register()
+    def test_getSpikes(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
@@ -379,7 +444,8 @@ class AssemblyTest(unittest.TestCase):
         a.getSpikes()
         a.get_data.assert_called_with('spikes', True)
 
-    def test_print_v(self):
+    @register()
+    def test_print_v(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
@@ -389,7 +455,8 @@ class AssemblyTest(unittest.TestCase):
         a.print_v("foo.txt")
         a.write_data.assert_called_with('foo.txt', 'v', True)
 
-    def test_get_v(self):
+    @register()
+    def test_get_v(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
@@ -399,7 +466,8 @@ class AssemblyTest(unittest.TestCase):
         a.get_v()
         a.get_data.assert_called_with('v', True)
 
-    def test_print_gsyn(self):
+    @register(exclude=['hardware.brainscales'])
+    def test_print_gsyn(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
@@ -409,7 +477,8 @@ class AssemblyTest(unittest.TestCase):
         a.print_gsyn("foo.txt")
         a.write_data.assert_called_with('foo.txt', ['gsyn_exc', 'gsyn_inh'], True)
 
-    def test_get_gsyn(self):
+    @register(exclude=['hardware.brainscales'])
+    def test_get_gsyn(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
@@ -418,6 +487,76 @@ class AssemblyTest(unittest.TestCase):
         a.get_data = Mock()
         a.get_gsyn()
         a.get_data.assert_called_with(['gsyn_exc', 'gsyn_inh'], True)
+
+    @register()
+    def test_get_multiple_homogeneous_params_with_gather(self, sim=sim):
+        p1 = sim.Population(4, sim.IF_cond_exp(**{'tau_m': 12.3, 'tau_syn_E': 0.987, 'tau_syn_I': 0.7}))
+        p2 = sim.Population(4, sim.IF_curr_exp(**{'tau_m': 12.3, 'tau_syn_E': 0.987, 'tau_syn_I': 0.7}))
+        a = p1 + p2
+        tau_syn_E, tau_m = a.get(('tau_syn_E', 'tau_m'), gather=True)
+        self.assertIsInstance(tau_syn_E, float)
+        self.assertEqual(tau_syn_E, 0.987)
+        self.assertAlmostEqual(tau_m, 12.3)
+
+    @register()
+    def test_get_single_param_with_gather(self, sim=sim):
+        p1 = sim.Population(4, sim.IF_cond_exp(tau_m=12.3, tau_syn_E=0.987, tau_syn_I=0.7))
+        p2 = sim.Population(3, sim.IF_cond_exp(tau_m=23.4, tau_syn_E=0.987, tau_syn_I=0.7))
+        a = p1 + p2
+        tau_syn_E = a.get('tau_syn_E', gather=True)
+        self.assertAlmostEqual(tau_syn_E, 0.987, places=6)
+        tau_m = a.get('tau_m', gather=True)
+        assert_array_equal(tau_m, numpy.array([12.3, 12.3, 12.3, 12.3, 23.4, 23.4, 23.4]))
+
+    @register()
+    def test_get_multiple_inhomogeneous_params_with_gather(self, sim=sim):
+        p1 = sim.Population(4, sim.IF_cond_exp(tau_m=12.3,
+                                               tau_syn_E=[0.987, 0.988, 0.989, 0.990],
+                                               tau_syn_I=lambda i: 0.5+0.1*i))
+        p2 = sim.Population(3, sim.EIF_cond_exp_isfa_ista(tau_m=12.3,
+                                                          tau_syn_E=[0.991, 0.992, 0.993],
+                                                          tau_syn_I=lambda i: 0.5+0.1*(i + 4)))
+        a = p1 + p2
+        tau_syn_E, tau_m, tau_syn_I = a.get(('tau_syn_E', 'tau_m', 'tau_syn_I'), gather=True)
+        self.assertIsInstance(tau_m, float)
+        self.assertIsInstance(tau_syn_E, numpy.ndarray)
+        assert_array_equal(tau_syn_E, numpy.array([0.987, 0.988, 0.989, 0.990, 0.991, 0.992, 0.993]))
+        self.assertAlmostEqual(tau_m, 12.3)
+        assert_array_almost_equal(tau_syn_I, numpy.array([0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]), decimal=12)
+
+    @register(exclude=['nest', 'neuron', 'brian', 'hardware.brainscales', 'spiNNaker'])
+    def test_get_multiple_params_no_gather(self, sim=sim):
+        sim.simulator.state.num_processes = 2
+        sim.simulator.state.mpi_rank = 1
+        p1 = sim.Population(4, sim.IF_cond_exp(tau_m=12.3,
+                                               tau_syn_E=[0.987, 0.988, 0.989, 0.990],
+                                               i_offset=lambda i: -0.2*i))
+        p2 = sim.Population(3, sim.IF_curr_exp(tau_m=12.3,
+                                               tau_syn_E=[0.991, 0.992, 0.993],
+                                               i_offset=lambda i: -0.2*(i + 4)))
+        a = p1 + p2
+        tau_syn_E, tau_m, i_offset = a.get(('tau_syn_E', 'tau_m', 'i_offset'), gather=False)
+        self.assertIsInstance(tau_m, float)
+        self.assertIsInstance(tau_syn_E, numpy.ndarray)
+        assert_array_equal(tau_syn_E, numpy.array([0.988, 0.990, 0.992]))
+        self.assertEqual(tau_m, 12.3)
+        assert_array_almost_equal(i_offset, numpy.array([-0.2, -0.6, -1.0, ]), decimal=12)
+        sim.simulator.state.num_processes = 1
+        sim.simulator.state.mpi_rank = 0
+
+    @register()
+    def test_get_sequence_param(self, sim=sim):
+        p1 = sim.Population(3, sim.SpikeSourceArray(spike_times=[Sequence([1, 2, 3, 4]),
+                                                                 Sequence([2, 3, 4, 5]),
+                                                                 Sequence([3, 4, 5, 6])]))
+        p2 = sim.Population(2, sim.SpikeSourceArray(spike_times=[Sequence([4, 5, 6, 7]),
+                                                                 Sequence([5, 6, 7, 8])]))
+        a = p1 + p2
+        spike_times = a.get('spike_times')
+        self.assertEqual(spike_times.size, 5)
+        assert_array_equal(spike_times[3], Sequence([4, 5, 6, 7]))
+
+
 
 
 if __name__ == '__main__':

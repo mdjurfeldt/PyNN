@@ -62,7 +62,7 @@ def print_script(filename, simulator):
     parser = doctest.DocTestParser()
     s = open(filename).read()
     script = "".join([ex.source for ex in parser.get_examples(s) if "+SKIP" not in ex.source])
-    print "from pyNN.%s import *\nsetup(max_delay=10.0, debug=True)\n" % simulator + script
+    print("from pyNN.%s import *\nsetup(max_delay=10.0, debug=True)\n%s" % (simulator, script))
 
 def remove_data_files():
     import glob
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # Process command line
     parser = OptionParser(usage="usage: %prog [options] FILE")
     parser.add_option("-s", "--simulator", dest="simulator",
-                      type="choice", choices=('nest', 'neuron', 'pcsim', 'brian'),
+                      type="choice", choices=('nest', 'neuron', 'brian'),
                       help="run doctests with SIMULATOR", metavar="SIMULATOR",
                       default='nest')
     parser.add_option("--strict", action="store_true", dest="strict", default=False,
