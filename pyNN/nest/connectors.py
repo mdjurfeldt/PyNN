@@ -13,7 +13,7 @@ try:
     haveCSA = True
 except ImportError:
     haveCSA = False
-from pyNN import random, core, errors
+from pyNN import random
 from pyNN.connectors import (Connector,
                              AllToAllConnector,
                              FixedProbabilityConnector,
@@ -27,7 +27,8 @@ from pyNN.connectors import (Connector,
                              FromListConnector,
                              FromFileConnector,
                              CloneConnector,
-                             ArrayConnector)
+                             ArrayConnector,
+                             FixedTotalNumberConnector)
 
 from .random import NativeRNG, NEST_RDEV_TYPES
 

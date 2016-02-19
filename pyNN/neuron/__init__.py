@@ -41,10 +41,12 @@ from pyNN.neuron.populations import Population, PopulationView, Assembly
 from pyNN.neuron.projections import Projection
 from pyNN.neuron.cells import NativeCellType
 from .music import music_end
-import numpy
+try:
+    from . import nineml
+except ImportError:
+    pass
 
 import logging
-from neuron import h
 logger = logging.getLogger("PyNN")
 
 # ==============================================================================
