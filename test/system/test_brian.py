@@ -2,7 +2,7 @@ from nose.plugins.skip import SkipTest
 from nose.tools import assert_equal
 import numpy
 from numpy.testing import assert_array_equal
-from scenarios.registry import registry
+from .scenarios.registry import registry
 
 try:
     import pyNN.brian
@@ -10,10 +10,11 @@ try:
 except ImportError:
     have_brian = False
 
+
 def test_scenarios():
     for scenario in registry:
         if "brian" not in scenario.exclude:
-            scenario.description = scenario.__name__
+            scenario.description = "{}(brian)".format(scenario.__name__)
             if have_brian:
                 yield scenario, pyNN.brian
             else:

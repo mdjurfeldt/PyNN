@@ -1,7 +1,7 @@
 """
 Tests of the Connector classes, using the pyNN.mock backend.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -30,6 +30,7 @@ def setUp():
 def tearDown():
     random.get_mpi_config = orig_mpi_get_config
         
+
 @register_class()
 class TestOneToOneConnector(unittest.TestCase):
 
@@ -37,7 +38,7 @@ class TestOneToOneConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=0, **extra)
         self.p1 = sim.Population(5, sim.IF_cond_exp())
         self.p2 = sim.Population(5, sim.HH_cond_exp())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
         
     def tearDown(self, sim=sim):
         sim.end()
@@ -69,8 +70,8 @@ class TestAllToAllConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123, **extra)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p1._mask_local, numpy.array([0,1,0,1], dtype=bool))
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p1._mask_local, numpy.array([0, 1, 0, 1], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_connect_with_scalar_weights_and_delays(self, sim=sim):
@@ -204,7 +205,7 @@ class TestFixedProbabilityConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_connect_with_default_args(self, sim=sim):
@@ -274,7 +275,7 @@ class TestFixedProbabilityConnector(unittest.TestCase):
     def test_connect_with_weight_function(self, sim=sim):
         C = connectors.FixedProbabilityConnector(p_connect=0.85,
                                                  rng=MockRNG(delta=0.1))
-        syn = sim.StaticSynapse(weight=lambda d: 0.1*d)
+        syn = sim.StaticSynapse(weight=lambda d: 0.1 * d)
         prj = sim.Projection(self.p1, self.p2, C, syn)
         self.assertEqual(prj.get(["weight", "delay"], format='list', gather=False),  # use gather False because we are faking the MPI
                          [(0, 1, 0.1, 0.123),
@@ -329,7 +330,7 @@ class TestDistanceDependentProbabilityConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_connect_with_default_args(self, sim=sim):
@@ -354,7 +355,7 @@ class TestFromListConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_connect_with_valid_list(self, sim=sim):
@@ -401,6 +402,24 @@ class TestFromListConnector(unittest.TestCase):
                          [(0, 1, 0.5, 0.14, 88.8, 800.0, 104.0),
                           (2, 3, 0.3, 0.12, 88.8, 600.0, 102.0)])
 
+    @register()
+    def test_with_stdp_synapse(self, sim=sim):
+        connection_list = [
+            (0, 0, 0.1, 0.1, 10.0, 0.4),
+            (3, 0, 0.2, 0.11, 10.1, 0.5),
+            (2, 3, 0.3, 0.12, 10.2, 0.6),  # local
+            (2, 2, 0.4, 0.13, 10.3, 0.7),
+            (0, 1, 0.5, 0.14, 10.4, 0.8),  # local
+            ]
+        C = connectors.FromListConnector(connection_list, column_names=["weight", "delay", "tau_plus", "w_max"])
+        syn = sim.STDPMechanism(timing_dependence=sim.SpikePairRule(tau_plus=12.3, tau_minus=33.3),
+                                weight_dependence=sim.MultiplicativeWeightDependence(w_max=1.11),
+                                weight=0.321, delay=0.2)
+        prj = sim.Projection(self.p1, self.p2, C, syn)
+        self.assertEqual(prj.get(["weight", "delay", "tau_plus", "tau_minus", "w_max"], format='list', gather=False),  # use gather False because we are faking the MPI
+                         [(0, 1, 0.5, 0.14, 10.4, 33.3, 0.8),
+                          (2, 3, 0.3, 0.12, 10.2, 33.3, 0.6)])
+
 
 @register_class()
 class TestFromFileConnector(unittest.TestCase):
@@ -409,7 +428,7 @@ class TestFromFileConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
         self.connection_list = [
             (0, 0, 0.1, 0.1),
             (3, 0, 0.2, 0.11),
@@ -435,7 +454,7 @@ class TestFromFileConnector(unittest.TestCase):
 
     @register()
     def test_connect_with_standard_text_file_distributed(self, sim=sim):
-        local_connection_list = [c for c in self.connection_list if c[1]%2 == 1]
+        local_connection_list = [c for c in self.connection_list if c[1] % 2 == 1]
         numpy.savetxt("test.connections.1", local_connection_list)
         C = connectors.FromFileConnector("test.connections", distributed=True)
         syn = sim.StaticSynapse()
@@ -470,7 +489,7 @@ class TestFixedNumberPostConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_with_n_smaller_than_population_size(self, sim=sim):
@@ -548,6 +567,7 @@ class TestFixedNumberPostConnector(unittest.TestCase):
                           (3, 1, 0.0, 0.123),
                           (1, 3, 0.0, 0.123),
                           (2, 3, 0.0, 0.123)])
+
     @register()
     def test_with_replacement_with_variable_n(self, sim=sim):
         n = random.RandomDistribution('binomial', (5, 0.5), rng=MockRNG(start=1, delta=2))
@@ -589,7 +609,7 @@ class TestFixedNumberPreConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_with_n_smaller_than_population_size(self, sim=sim):
@@ -752,7 +772,7 @@ class TestArrayConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(3, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(4, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([1, 0, 1, 0], dtype=bool))
 
     @register()
     def test_connect_with_scalar_weights_and_delays(self, sim=sim):
@@ -787,7 +807,6 @@ class TestArrayConnector(unittest.TestCase):
                           (2, 2, 4.0, 1.4000000000000001)])  # better to do an "almost-equal" check
 
 
-
 @register_class()
 class TestCloneConnector(unittest.TestCase):
 
@@ -795,7 +814,7 @@ class TestCloneConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123)
         self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([0,1,0,1,0], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
         connection_list = [
             (0, 0, 0.0, 1.0),
             (3, 0, 0.0, 1.0),
@@ -810,6 +829,7 @@ class TestCloneConnector(unittest.TestCase):
         # The gather_dict function in recording needs to be temporarily replaced so it can work with
         # a mock version of the function to avoid it throwing an mpi4py import error when setting
         # the rank in pyNN.mock by hand to > 1
+
         def mock_gather_dict(D, all=False):
             return D
         recording.gather_dict = mock_gather_dict
@@ -839,14 +859,17 @@ class TestCloneConnector(unittest.TestCase):
 class TestIndexBasedProbabilityConnector(unittest.TestCase):
 
     class IndexBasedProbability(connectors.IndexBasedExpression):
+
         def __call__(self, i, j):
             return numpy.array((i + j) % 3 == 0, dtype=float)
 
     class IndexBasedWeights(connectors.IndexBasedExpression):
+
         def __call__(self, i, j):
             return numpy.array(i * j + 1, dtype=float)
 
     class IndexBasedDelays(connectors.IndexBasedExpression):
+
         def __call__(self, i, j):
             return numpy.array(i + j + 1, dtype=float)
 
@@ -854,7 +877,7 @@ class TestIndexBasedProbabilityConnector(unittest.TestCase):
         sim.setup(num_processes=2, rank=1, min_delay=0.123, **extra)
         self.p1 = sim.Population(5, sim.IF_cond_exp(), structure=space.Line())
         self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
-        assert_array_equal(self.p2._mask_local, numpy.array([1,0,1,0,1], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([1, 0, 1, 0, 1], dtype=bool))
 
     @register()
     def test_connect_with_scalar_weights_and_delays(self, sim=sim):
@@ -902,11 +925,12 @@ class TestDisplacementDependentProbabilityConnector(unittest.TestCase):
                                  structure=space.Grid2D(aspect_ratio=1.0, dx=1.0, dy=1.0))
         self.p2 = sim.Population(9, sim.HH_cond_exp(),
                                  structure=space.Grid2D(aspect_ratio=1.0, dx=1.0, dy=1.0))
-        assert_array_equal(self.p2._mask_local, numpy.array([1,0,1,0,1,0,1,0,1], dtype=bool))
+        assert_array_equal(self.p2._mask_local, numpy.array([1, 0, 1, 0, 1, 0, 1, 0, 1], dtype=bool))
 
     @register()
     def test_connect(self, sim=sim):
         syn = sim.StaticSynapse(weight=1.0, delay=2)
+
         def displacement_expression(d):
             return 0.5 * ((d[0] >= -1) * (d[0] <= 2)) + 0.25 * (d[1] >= 0) * (d[1] <= 1)
         C = connectors.DisplacementDependentProbabilityConnector(displacement_expression,
@@ -941,6 +965,7 @@ class TestDisplacementDependentProbabilityConnector(unittest.TestCase):
                           (1, 8, 1.0, 2.0),
                           (2, 8, 1.0, 2.0)])
 
+
 @unittest.skip('skipping these tests until I figure out how I want to refactor checks')
 class CheckTest(unittest.TestCase):
 
@@ -965,12 +990,12 @@ class CheckTest(unittest.TestCase):
         assert_array_equal(w, connectors.check_weights(w, 'excitatory', is_conductance=False))
         assert_array_equal(w, connectors.check_weights(w, 'inhibitory', is_conductance=True))
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'inhibitory', is_conductance=False)
-        w = numpy.arange(-10,0)
+        w = numpy.arange(-10, 0)
         assert_array_equal(w, connectors.check_weights(w, 'inhibitory', is_conductance=False))
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'inhibitory', is_conductance=True)
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'excitatory', is_conductance=True)
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'excitatory', is_conductance=False)
-        w = numpy.arange(-5,5)
+        w = numpy.arange(-5, 5)
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'excitatory', is_conductance=True)
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'excitatory', is_conductance=False)
         self.assertRaises(errors.ConnectionError, connectors.check_weights, w, 'inhibitory', is_conductance=True)
@@ -984,6 +1009,24 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(4.3, connectors.check_weights(4.3, 'excitatory', is_conductance=None))
 
     def test_check_delay(self, sim=sim):
-        self.assertEqual(connectors.check_delays(2*self.MIN_DELAY, self.MIN_DELAY, 1e99), 2*self.MIN_DELAY)
-        self.assertRaises(errors.ConnectionError, connectors.check_delays, 0.5*self.MIN_DELAY, self.MIN_DELAY, 1e99)
+        self.assertEqual(connectors.check_delays(2 * self.MIN_DELAY, self.MIN_DELAY, 1e99), 2 * self.MIN_DELAY)
+        self.assertRaises(errors.ConnectionError, connectors.check_delays, 0.5 * self.MIN_DELAY, self.MIN_DELAY, 1e99)
         self.assertRaises(errors.ConnectionError, connectors.check_delays, 3.0, self.MIN_DELAY, 2.0)
+
+
+@register_class()
+class TestFixedTotalNumberConnector(unittest.TestCase):
+
+    def setUp(self, sim=sim):
+        sim.setup(num_processes=2, rank=1, min_delay=0.123)
+        self.p1 = sim.Population(4, sim.IF_cond_exp(), structure=space.Line())
+        self.p2 = sim.Population(5, sim.HH_cond_exp(), structure=space.Line())
+        assert_array_equal(self.p2._mask_local, numpy.array([0, 1, 0, 1, 0], dtype=bool))
+
+    def test_1(self):
+        C = connectors.FixedTotalNumberConnector(n=12, rng=random.NumpyRNG())
+        syn = sim.StaticSynapse(weight="0.5*d")
+        prj = sim.Projection(self.p1, self.p2, C, syn)
+        connections = prj.get(["weight", "delay"], format='list', gather=False)
+        self.assertLess(len(connections), 12)    # unlikely to be 12, since we have 2 MPI nodes
+        self.assertGreater(len(connections), 0)  # unlikely to be 0

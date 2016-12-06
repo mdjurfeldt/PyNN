@@ -6,7 +6,7 @@ formatting. If you need to produce more complex and/or publication-quality
 figures, it will probably be easier to use matplotlib or another plotting
 package directly rather than trying to extend this module.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -20,6 +20,10 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 from quantities import ms
 from neo import AnalogSignalArray, AnalogSignal, SpikeTrain
+try:
+    from sys import maxint
+except ImportError:  # Py3
+    from sys import maxsize as maxint
 
 
 DEFAULT_FIG_SETTINGS = {
@@ -94,16 +98,18 @@ def plot_spiketrains(ax, spiketrains, label='', **options):
     """
     Plot all spike trains in a Segment in a raster plot.
     """
-    ax.set_xlim(0, spiketrains[0].t_stop/ms)
+    ax.set_xlim(0, spiketrains[0].t_stop / ms)
     handle_options(ax, options)
     max_index = 0
+    min_index = maxint
     for spiketrain in spiketrains:
         ax.plot(spiketrain,
                  np.ones_like(spiketrain) * spiketrain.annotations['source_index'],
                  'k.', **options)
         max_index = max(max_index, spiketrain.annotations['source_index'])
+        min_index = min(min_index, spiketrain.annotations['source_index'])
     ax.set_ylabel("Neuron index")
-    ax.set_ylim(-0.5, max_index + 0.5)
+    ax.set_ylim(-0.5 + min_index, max_index + 0.5)
     if label:
         plt.text(0.95, 0.95, label,
                  transform=ax.transAxes, ha='right', va='top',
@@ -131,6 +137,16 @@ def scatterplot(ax, data_table, label='', **options):
     if options.pop("show_fit", False):
         plt.plot(data_table.x, data_table.y_fit, 'k-')
     plt.scatter(data_table.x, data_table.y, **options)
+    if label:
+        plt.text(0.95, 0.95, label,
+                 transform=ax.transAxes, ha='right', va='top',
+                 bbox=dict(facecolor='white', alpha=1.0))
+
+
+def plot_hist(ax, histogram, label='', **options):
+    handle_options(ax, options)
+    for t, n in histogram:
+        ax.bar(t, n, width=histogram.bin_width, color=None)
     if label:
         plt.text(0.95, 0.95, label,
                  transform=ax.transAxes, ha='right', va='top',
@@ -173,19 +189,19 @@ class Figure(object):
         else:
             settings = DEFAULT_FIG_SETTINGS
         plt.rcParams.update(settings)
-        width, height = options.get("size", (6, 2*n_panels + 1.2))
+        width, height = options.get("size", (6, 2 * n_panels + 1.2))
         self.fig = plt.figure(1, figsize=(width, height))
         gs = gridspec.GridSpec(n_panels, 1)
         if "annotations" in options:
-            gs.update(bottom=1.2/height)  # leave space for annotations
-        gs.update(top=1 - 0.8/height, hspace=0.25)
+            gs.update(bottom=1.2 / height)  # leave space for annotations
+        gs.update(top=1 - 0.8 / height, hspace=0.25)
         #print(gs.get_grid_positions(self.fig))
 
         for i, panel in enumerate(panels):
             panel.plot(plt.subplot(gs[i, 0]))
 
         if "title" in options:
-            self.fig.text(0.5, 1 - 0.5/height, options["title"],
+            self.fig.text(0.5, 1 - 0.5 / height, options["title"],
                           ha="center", va="top", fontsize="large")
         if "annotations" in options:
             plt.figtext(0.01, 0.01, options["annotations"], fontsize=6, verticalalignment='bottom')
@@ -234,6 +250,8 @@ class Panel(object):
             properties.update(self.options)
             if isinstance(datum, DataTable):
                 scatterplot(axes, datum, label=label, **properties)
+            elif isinstance(datum, Histogram):
+                plot_hist(axes, datum, label=label, **properties)
             elif isinstance(datum, AnalogSignal):
                 plot_signal(axes, datum, label=label, **properties)
             elif isinstance(datum, AnalogSignalArray):
@@ -265,8 +283,8 @@ def comparison_plot(segments, labels, title='', annotations=None,
     by_var_and_channel = defaultdict(lambda: defaultdict(list))
     line_properties = []
     for k, (segment, label) in enumerate(zip(segments, labels)):
-        lw = 2*(n_seg - k) - 1
-        col = 'rbgmck'[k%6]
+        lw = 2 * (n_seg - k) - 1
+        col = 'rbgmck'[k % 6]
         line_properties.append({"linewidth": lw, "color": col})
         for array in segment.analogsignalarrays:
             for i in array.channel_index.argsort():
@@ -309,3 +327,29 @@ class DataTable(object):
     @property
     def y_fit(self):
         return self._f(self.x, *self._popt)
+
+
+class Histogram(object):
+    """A lightweight encapsulation of histogram data."""
+
+    def __init__(self, data):
+        self.data = data
+        self.evaluated = False
+
+    def evaluate(self):
+        if not self.evaluated:
+            n_bins = int(np.sqrt(len(self.data)))
+            self.values, self.bins = np.histogram(self.data, bins=n_bins)
+            self.bin_width = self.bins[1] - self.bins[0]
+            self.evaluated = True
+
+    def __iter__(self):
+        """Iterate over the bars of the histogram"""
+        self.evaluate()
+        for x, y in zip(self.bins[:-1], self.values):
+            yield (x, y)
+
+
+def isi_histogram(segment):
+    all_isis = np.concatenate([np.diff(np.array(st)) for st in segment.spiketrains])
+    return Histogram(all_isis)

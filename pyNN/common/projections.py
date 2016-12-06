@@ -3,7 +3,7 @@
 Common implementation of the Projection class, to be sub-classed by
 backend-specific Projection classes.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -58,6 +58,13 @@ class Projection(object):
             TO DOCUMENT
     """
     _nProj = 0
+    MULTI_SYNAPSE_OPERATIONS = {
+        'last': lambda a, b: b,
+        'first': lambda a, b: a,
+        'sum': operator.iadd,
+        'min': min,
+        'max': max
+    }
 
     def __init__(self, presynaptic_neurons, postsynaptic_neurons, connector,
                  synapse_type=None, source=None, receptor_type=None,
@@ -65,6 +72,11 @@ class Projection(object):
         """
         Create a new projection, connecting the pre- and post-synaptic neurons.
         """
+        if not hasattr(self, "_simulator"):
+            errmsg = "`common.Projection` should not be instantiated directly. " \
+                     "You should import Projection from a PyNN backend module, " \
+                     "e.g. pyNN.nest or pyNN.neuron"
+            raise Exception(errmsg)
         for prefix, pop in zip(("pre", "post"),
                                (presynaptic_neurons, postsynaptic_neurons)):
             if not isinstance(pop, (BasePopulation, Assembly)):
@@ -74,9 +86,9 @@ class Projection(object):
             if not postsynaptic_neurons._homogeneous_synapses:
                 raise errors.ConnectionError('Projection to an Assembly object can be made only with homogeneous synapses types')
 
-        self.pre    = presynaptic_neurons  #  } these really
-        self.source = source               #  } should be
-        self.post   = postsynaptic_neurons #  } read-only
+        self.pre = presynaptic_neurons    # } these really
+        self.source = source              # } should be
+        self.post = postsynaptic_neurons  # } read-only
         self.receptor_type = receptor_type or 'excitatory'  # TO FIX: if weights are negative, default should be 'inhibitory'
         if self.receptor_type not in postsynaptic_neurons.receptor_types:
             valid_types = postsynaptic_neurons.receptor_types
@@ -217,7 +229,8 @@ class Projection(object):
 
     # --- Methods for writing/reading information to/from file. ---------------
 
-    def get(self, attribute_names, format, gather=True, with_address=True):
+    def get(self, attribute_names, format, gather=True, with_address=True,
+            multiple_synapses='sum'):
         """
         Get the values of a given attribute (weight or delay) for all
         connections in this Projection.
@@ -227,28 +240,41 @@ class Projection(object):
             names.
         `format`:
             "list" or "array".
+        `gather`:
+            if True, get connection information from all MPI nodes, otherwise
+            only from connections that exist in this node.
 
-        With list format, returns a list of tuples. Each tuple contains the
-        indices of the pre- and post-synaptic cell followed by the attribute
-        values in the order given in `attribute_names`. Example::
+        With list format, returns a list of tuples. By default, each tuple
+        contains the indices of the pre- and post-synaptic cell followed by
+        the attribute values in the order given in `attribute_names`.
+        Example::
 
             >>> prj.get(["weight", "delay"], format="list")[:5]
-            [(TODO)]
+            [(0.0, 0.0, 0.3401892507507171, 0.1),
+             (0.0, 1.0, 0.7990713166233654, 0.30000000000000004),
+             (0.0, 2.0, 0.6180841812877726, 0.5),
+             (0.0, 3.0, 0.6758149775627305, 0.7000000000000001),
+             (0.0, 4.0, 0.7166906726862953, 0.9)]
+
+        If `with_address` is set to False, then the tuples will contain only the
+        attribute values, not the cell indices.
 
         With array format, returns a tuple of 2D NumPy arrays, one for each
         name in `attribute_names`. The array element X_ij contains the
         attribute value for the connection from the ith neuron in the pre-
         synaptic Population to the jth neuron in the post-synaptic Population,
         if a single such connection exists. If there are no such connections,
-        X_ij will be NaN. If there are multiple such connections, the summed
-        value will be given, which makes some sense for weights, but is
-        pretty meaningless for delays. Example::
+        X_ij will be NaN. Example::
 
             >>> weights, delays = prj.get(["weight", "delay"], format="array")
-            >>> weights.shape
-            TODO
+            >>> weights
+            array([[ 0.66210438,         nan,  0.10744555,  0.54557088],
+                   [ 0.3676134 ,         nan,  0.41463193,         nan],
+                   [ 0.57434871,  0.4329354 ,  0.58482943,  0.42863916]])
 
-        TODO: document "with_address"
+        If there are multiple such connections, the action to take is
+        controlled by the `multiple_synapses` argument, which must be one of
+        {'last', 'first', 'sum', 'min', 'max'}.
 
         Values will be expressed in the standard PyNN units (i.e. millivolts,
         nanoamps, milliseconds, microsiemens, nanofarads, event per second).
@@ -264,32 +290,36 @@ class Projection(object):
             names = list(attribute_names)
             if with_address:
                 names = ["presynaptic_index", "postsynaptic_index"] + names
-            values = self._get_attributes_as_list(*names)
+            values = self._get_attributes_as_list(names)
             if gather and self._simulator.state.num_processes > 1:
-                all_values = { self._simulator.state.mpi_rank: values }
-                all_values = recording.gather_dict(all_values, all=(gather=='all'))
+                all_values = {self._simulator.state.mpi_rank: values}
+                all_values = recording.gather_dict(all_values, all=(gather == 'all'))
                 if gather == 'all' or self._simulator.state.mpi_rank == 0:
                     values = reduce(operator.add, all_values.values())
             if not with_address and return_single:
                 values = [val[0] for val in values]
             return values
         elif format == 'array':
+            if multiple_synapses not in Projection.MULTI_SYNAPSE_OPERATIONS:
+                raise ValueError("`multiple_synapses` argument must be one of {}".format(list(Projection.MULTI_SYNAPSE_OPERATIONS)))
             if gather and self._simulator.state.num_processes > 1:
                 # Node 0 is the only one creating a full connection matrix, and returning it (saving memory)
                 # Slaves nodes are returning list of connections, so this may be inconsistent...
-                names      = list(attribute_names)
-                names      = ["presynaptic_index", "postsynaptic_index"] + names
-                values     = self._get_attributes_as_list(*names)
-                all_values = { self._simulator.state.mpi_rank: values }
-                all_values = recording.gather_dict(all_values, all=(gather=='all'))
+                names = list(attribute_names)
+                names = ["presynaptic_index", "postsynaptic_index"] + names
+                values = self._get_attributes_as_list(names)
+                all_values = {self._simulator.state.mpi_rank: values}
+                all_values = recording.gather_dict(all_values, all=(gather == 'all'))
                 if gather == 'all' or self._simulator.state.mpi_rank == 0:
                     tmp_values = reduce(operator.add, all_values.values())
-                    values     = self._get_attributes_as_arrays(*attribute_names)
+                    values = self._get_attributes_as_arrays(attribute_names,
+                                                            multiple_synapses=multiple_synapses)
                     tmp_values = numpy.array(tmp_values)
                     for i in xrange(len(values)):
-                        values[i][tmp_values[:, 0].astype(int), tmp_values[:, 1].astype(int)] = tmp_values[:, 2+i]
+                        values[i][tmp_values[:, 0].astype(int), tmp_values[:, 1].astype(int)] = tmp_values[:, 2 + i]
             else:
-                values = self._get_attributes_as_arrays(*attribute_names)
+                values = self._get_attributes_as_arrays(attribute_names,
+                                                        multiple_synapses=multiple_synapses)
             if return_single:
                 if gather == 'all' or self._simulator.state.mpi_rank == 0:
                     assert len(values) == 1, values
@@ -299,10 +329,11 @@ class Projection(object):
         else:
             raise Exception("format must be 'list' or 'array'")
 
-    def _get_attributes_as_list(self, *names):
+    def _get_attributes_as_list(self, names):
         return [c.as_tuple(*names) for c in self.connections]
 
-    def _get_attributes_as_arrays(self, *names):
+    def _get_attributes_as_arrays(self, names, multiple_synapses='sum'):
+        multi_synapse_operation = Projection.MULTI_SYNAPSE_OPERATIONS[multiple_synapses]
         all_values = []
         for attribute_name in names:
             values = numpy.nan * numpy.ones((self.pre.size, self.post.size))
@@ -314,9 +345,7 @@ class Projection(object):
                 if numpy.isnan(values[addr]):
                     values[addr] = value
                 else:
-                    values[addr] += value   # addition is only appropriate for certain variables
-                                            # e.g. weight. Not appropriate for delays.
-                                            # What about synaptic parameters, e.g. wmax?
+                    values[addr] = multi_synapse_operation(values[addr], value)
             all_values.append(values)
         return all_values
 
@@ -383,7 +412,7 @@ class Projection(object):
             min = weights.min()
         if max is None:
             max = weights.max()
-        bins = numpy.linspace(min, max, nbins+1)
+        bins = numpy.linspace(min, max, nbins + 1)
         return numpy.histogram(weights, bins)  # returns n, bins
 
     def describe(self, template='projection_default.txt', engine='default'):

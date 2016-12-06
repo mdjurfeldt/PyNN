@@ -7,7 +7,7 @@ Classes:
     NoisyCurrentSource -- a Gaussian whitish noise current.
     ACSource           -- a sine modulated current.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -19,30 +19,26 @@ from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.neuron import simulator
 
 
-_current_sources = []  # if a CurrentSource is created but not assigned to a variable,
-                       # it will not persist, so we store a reference here
-
-
 class NeuronCurrentSource(StandardCurrentSource):
     """Base class for a source of current to be injected into a neuron."""
 
     def __init__(self, **parameters):
-        self._devices    = []
-        self.cell_list   = []
+        self._devices = []
+        self.cell_list = []
         self._amplitudes = None
-        self._times      = None
-        self._h_iclamps  = {}
+        self._times = None
+        self._h_iclamps = {}
         parameter_space = ParameterSpace(self.default_parameters,
                                          self.get_schema(),
                                          shape=(1,))
         parameter_space.update(**parameters)
         parameter_space = self.translate(parameter_space)
         self.set_native_parameters(parameter_space)
-        _current_sources.append(self)
+        simulator.state.current_sources.append(self)
 
     @property
     def _h_amplitudes(self):
-        if self._amplitudes == None:
+        if self._amplitudes is None:
             if isinstance(self.amplitudes, Sequence):
                 self._amplitudes = h.Vector(self.amplitudes.value)
             else:
@@ -51,7 +47,7 @@ class NeuronCurrentSource(StandardCurrentSource):
 
     @property
     def _h_times(self):
-        if self._times == None:
+        if self._times is None:
             if isinstance(self.times, Sequence):
                 self._times = h.Vector(self.times.value)
             else:
@@ -61,7 +57,7 @@ class NeuronCurrentSource(StandardCurrentSource):
     def _reset(self):
         if self._is_computed:
             self._amplitudes = None
-            self._times      = None
+            self._times = None
             self._generate()
         for iclamp in self._h_iclamps.values():
             self._update_iclamp(iclamp)
@@ -69,13 +65,13 @@ class NeuronCurrentSource(StandardCurrentSource):
     def _update_iclamp(self, iclamp):
         if not self._is_playable:
             iclamp.delay = max(0, self.start - simulator.state.t)
-            iclamp.dur   = self.stop-self.start
-            iclamp.amp   = self.amplitude
+            iclamp.dur = self.stop - self.start
+            iclamp.amp = self.amplitude
 
         if self._is_playable:
             iclamp.delay = 0.0
-            iclamp.dur   = 1e12
-            iclamp.amp   = 0.0
+            iclamp.dur = 1e12
+            iclamp.amp = 0.0
             self._h_amplitudes.play(iclamp._ref_amp, self._h_times)
 
     def set_native_parameters(self, parameters):
@@ -99,7 +95,6 @@ class NeuronCurrentSource(StandardCurrentSource):
                     self.cell_list += [id]
                     self._h_iclamps[id] = h.IClamp(0.5, sec=id._cell.source_section)
                     self._devices.append(self._h_iclamps[id])
-                self._update_iclamp(self._h_iclamps[id])
 
     def _record(self):
         self.itrace = h.Vector()
@@ -162,11 +157,11 @@ class ACSource(NeuronCurrentSource, electrodes.ACSource):
         self._generate()
 
     def _generate(self):
-        ## Not efficient at all... Is there a way to have those vectors computed on the fly ?
-        ## Otherwise should have a buffer mechanism
-        self.times      = numpy.arange(self.start, self.stop+simulator.state.dt, simulator.state.dt)
-        tmp             = numpy.arange(0, self.stop - self.start, simulator.state.dt)
-        self.amplitudes = self.offset + self.amplitude * numpy.sin(tmp*2*numpy.pi*self.frequency/1000. + 2*numpy.pi*self.phase/360)
+        # Not efficient at all... Is there a way to have those vectors computed on the fly ?
+        # Otherwise should have a buffer mechanism
+        self.times = numpy.arange(self.start, self.stop + simulator.state.dt, simulator.state.dt)
+        tmp = numpy.arange(0, self.stop - self.start, simulator.state.dt)
+        self.amplitudes = self.offset + self.amplitude * numpy.sin(tmp * 2 * numpy.pi * self.frequency / 1000. + 2 * numpy.pi * self.phase / 360)
         self.amplitudes[-1] = 0.0
 
 
@@ -192,7 +187,7 @@ class NoisyCurrentSource(NeuronCurrentSource, electrodes.NoisyCurrentSource):
     def _generate(self):
         ## Not efficient at all... Is there a way to have those vectors computed on the fly ?
         ## Otherwise should have a buffer mechanism
-        self.times      = numpy.arange(self.start, self.stop+simulator.state.dt, simulator.state.dt)
-        tmp             = numpy.arange(0, self.stop - self.start, simulator.state.dt)
-        self.amplitudes = self.mean + (self.stdev*self.dt)*numpy.random.randn(len(tmp))
+        self.times = numpy.arange(self.start, self.stop + simulator.state.dt, simulator.state.dt)
+        tmp = numpy.arange(0, self.stop - self.start, simulator.state.dt)
+        self.amplitudes = self.mean + (self.stdev * self.dt) * numpy.random.randn(len(tmp))
         self.amplitudes[-1] = 0.0

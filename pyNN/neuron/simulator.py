@@ -15,7 +15,7 @@ Attributes:
 All other functions and classes are private, and should not be used by other
 modules.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -49,6 +49,7 @@ name = "NEURON"  # for use in annotating output data
 _MIN_PROJECTION_VARGID = 1000000 
 
 # --- Internal NEURON functionality --------------------------------------------
+
 
 def load_mechanisms(path):
     """
@@ -85,7 +86,7 @@ def is_point_process(obj):
     return hasattr(obj, 'loc')
 
 
-def nativeRNG_pick(n, rng, distribution='uniform', parameters=[0,1]):
+def nativeRNG_pick(n, rng, distribution='uniform', parameters=[0, 1]):
     """
     Pick random numbers from a Hoc Random object.
 
@@ -93,14 +94,16 @@ def nativeRNG_pick(n, rng, distribution='uniform', parameters=[0,1]):
     """
     native_rng = h.Random(0 or rng.seed)
     rarr = [getattr(native_rng, distribution)(*parameters)]
-    rarr.extend([native_rng.repick() for j in xrange(n-1)])
+    rarr.extend([native_rng.repick() for j in xrange(n - 1)])
     return numpy.array(rarr)
 
 
 def h_property(name):
     """Return a property that accesses a global variable in Hoc."""
+
     def _get(self):
         return getattr(h, name)
+
     def _set(self, val):
         setattr(h, name, val)
     return property(fget=_get, fset=_set)
@@ -134,7 +137,7 @@ class _Initializer(object):
         """
         for item in items:
             if isinstance(item, (common.BasePopulation, common.Assembly)):
-                if item.celltype.injectable: # don't do memb_init() on spike sources
+                if item.celltype.injectable:  # don't do memb_init() on spike sources
                     self.population_list.append(item)
             else:
                 if hasattr(item._cell, "memb_init"):
@@ -142,8 +145,8 @@ class _Initializer(object):
 
     def _initialize(self):
         """Call `memb_init()` for all registered cell objects."""
-        logger.info("Initializing membrane potential of %d cells and %d Populations." % \
-                     (len(self.cell_list), len(self.population_list)))
+        logger.info("Initializing membrane potential of %d cells and %d Populations." %
+                    (len(self.cell_list), len(self.population_list)))
         for cell in self.cell_list:
             cell._cell.memb_init()
         for population in self.population_list:
@@ -174,13 +177,15 @@ class _State(common.control.BaseState):
         h('objref plastic_connections')
         self.clear()
         self.default_maxstep = 10.0
-        self.native_rng_baseseed  = 0
+        self.native_rng_baseseed = 0
 
     t = h_property('t')
+
     def __get_dt(self):
         return h.dt
+
     def __set_dt(self, dt):
-        h.steps_per_ms = 1.0/dt
+        h.steps_per_ms = 1.0 / dt
         h.dt = dt
     dt = property(fget=__get_dt, fset=__set_dt)
     tstop = h_property('tstop')         # these are stored in hoc so that we
@@ -188,6 +193,7 @@ class _State(common.control.BaseState):
     def __set_min_delay(self, val):     # can interact with the GUI
         if val != 'auto':
             h.min_delay = val
+
     def __get_min_delay(self):
         if h.min_delay < 0:
             return 'auto'
@@ -198,13 +204,13 @@ class _State(common.control.BaseState):
     def register_gid(self, gid, source, section=None):
         """Register a global ID with the global `ParallelContext` instance."""
         ###print("registering gid %s to %s (section=%s)" % (gid, source, section))
-        self.parallel_context.set_gid2node(gid, self.mpi_rank) # assign the gid to this node
+        self.parallel_context.set_gid2node(gid, self.mpi_rank)  # assign the gid to this node
         if is_point_process(source):
             nc = h.NetCon(source, None)                          # } associate the cell spike source
         else:
             nc = h.NetCon(source, None, sec=section)
         self.parallel_context.cell(gid, nc)                     # } with the gid (using a temporary NetCon)
-        self.gid_sources.append(source) # gid_clear (in _State.reset()) will cause a
+        self.gid_sources.append(source)  # gid_clear (in _State.reset()) will cause a
                                         # segmentation fault if any of the sources
                                         # registered using pc.cell() no longer exist, so
                                         # we keep a reference to all sources in the
@@ -216,8 +222,9 @@ class _State(common.control.BaseState):
         self.parallel_context.gid_clear()
         self.gid_sources = []
         self.recorders = set([])
+        self.current_sources = []
         self.gid_counter = 0
-        self.vargid_offsets = dict() # Contains the start of the available "variable"-GID range for each projection (as opposed to "cell"-GIDs)
+        self.vargid_offsets = dict()  # Contains the start of the available "variable"-GID range for each projection (as opposed to "cell"-GIDs)
         h.plastic_connections = []
         self.segment_counter = -1
         self.reset()
@@ -240,7 +247,7 @@ class _State(common.control.BaseState):
                 state.parallel_context.setup_transfer()
             h.finitialize()
             self.tstop = 0
-            logger.debug("default_maxstep on host #%d = %g" % (self.mpi_rank, self.default_maxstep ))
+            logger.debug("default_maxstep on host #%d = %g" % (self.mpi_rank, self.default_maxstep))
             logger.debug("local_minimum_delay on host #%d = %g" % (self.mpi_rank, local_minimum_delay))
             if self.min_delay == 'auto':
                 self.min_delay = local_minimum_delay
@@ -249,11 +256,17 @@ class _State(common.control.BaseState):
                     assert local_minimum_delay >= self.min_delay, \
                        "There are connections with delays (%g) shorter than the minimum delay (%g)" % (local_minimum_delay, self.min_delay)
 
+    def _update_current_sources(self):
+        for source in self.current_sources:
+            for iclamp in source._devices:
+                source._update_iclamp(iclamp)
+
     def run(self, simtime):
         """Advance the simulation for a certain time."""
         self.run_until(self.tstop + simtime)
 
     def run_until(self, tstop):
+        self._update_current_sources()
         self._pre_run()
         self.tstop = tstop
         #logger.info("Running the simulation until %g ms" % tstop)
@@ -296,6 +309,7 @@ class _State(common.control.BaseState):
 
 # --- For implementation of access to individual neurons' parameters -----------
 
+
 class ID(int, common.IDMixin):
     __doc__ = common.IDMixin.__doc__
 
@@ -319,7 +333,7 @@ class ID(int, common.IDMixin):
         self._cell = cell_model(**cell_parameters)          # create the cell object
         state.register_gid(gid, self._cell.source, section=self._cell.source_section)
         if hasattr(self._cell, "get_threshold"):            # this is not adequate, since the threshold may be changed after cell creation
-            state.parallel_context.threshold(int(self), self._cell.get_threshold()) # the problem is that self._cell does not know its own gid
+            state.parallel_context.threshold(int(self), self._cell.get_threshold())  # the problem is that self._cell does not know its own gid
 
     def get_initial_value(self, variable):
         """Get the initial value of a state variable of the cell."""
@@ -359,7 +373,7 @@ class Connection(common.Connection):
         # synaptic channels, need to set nc.weight[1] here
         if self.nc.wcnt() > 1 and hasattr(self.postsynaptic_cell._cell, "type"):
             self.nc.weight[1] = self.postsynaptic_cell._cell.type.receptor_types.index(projection.receptor_type)
-        self.nc.delay  = parameters.pop('delay')
+        self.nc.delay = parameters.pop('delay')
         if projection.synapse_type.model is not None:
             self._setup_plasticity(projection.synapse_type, parameters)
         # nc.threshold is supposed to be set by ParallelContext.threshold, called in _build_cell(), above, but this hasn't been tested
@@ -376,7 +390,7 @@ class Connection(common.Connection):
         mechanism = synapse_type.model
         self.weight_adjuster = getattr(h, mechanism)(0.5)
         if synapse_type.postsynaptic_variable == 'spikes':
-            parameters['allow_update_on_post'] = int(False) # for compatibility with NEST
+            parameters['allow_update_on_post'] = int(False)  # for compatibility with NEST
             self.ddf = parameters.pop('dendritic_delay_fraction')
             # If ddf=1, the synaptic delay
             # `d` is considered to occur entirely in the post-synaptic
@@ -425,9 +439,9 @@ class Connection(common.Connection):
     def _set_delay(self, d):
         self.nc.delay = d
         if hasattr(self, 'pre2wa'):
-            self.pre2wa.delay = float(d)*(1-self.ddf)
+            self.pre2wa.delay = float(d) * (1 - self.ddf)
         if hasattr(self, 'post2wa'):
-            self.post2wa.delay = float(d)*self.ddf
+            self.post2wa.delay = float(d) * self.ddf
 
     def _get_delay(self):
         """Connection delay in ms."""
@@ -492,6 +506,7 @@ class GapJunction(object):
     def as_tuple(self, *attribute_names):
         return tuple(getattr(self, name) for name in attribute_names)
     
+
 class GapJunctionPresynaptic(GapJunction):
     """
     The presynaptic component of a gap junction. Gap junctions in NEURON are actually symmetrical
@@ -515,6 +530,7 @@ class GapJunctionPresynaptic(GapJunction):
 def generate_synapse_property(name):
     def _get(self):
         return getattr(self.weight_adjuster, name)
+
     def _set(self, val):
         setattr(self.weight_adjuster, name, val)
     return property(_get, _set)
@@ -535,7 +551,7 @@ setattr(Connection, 'rho', generate_synapse_property('rho'))
 # --- Initialization, and module attributes ------------------------------------
 
 mech_path = os.path.join(pyNN_path[0], 'neuron', 'nmodl')
-load_mechanisms(mech_path) # maintains a list of mechanisms that have already been imported
+load_mechanisms(mech_path)  # maintains a list of mechanisms that have already been imported
 state = _State()  # a Singleton, so only a single instance ever exists
 del _State
 initializer = _Initializer()

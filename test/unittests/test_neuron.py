@@ -36,12 +36,15 @@ class MockCellClass(object):
     recordable = ['v', 'spikes', 'gsyn_exc', 'gsyn_inh', 'spam']
     parameters = ['romans', 'judeans']
     injectable = True
+
     @classmethod
     def has_parameter(cls, name):
         return name in cls.parameters
 
+
 class MockCell(object):
     parameter_names = ['romans', 'judeans']
+
     def __init__(self, romans=0, judeans=1):
         self.source_section = h.Section()
         self.source = self.source_section(0.5)._ref_v
@@ -64,12 +67,15 @@ class MockCell(object):
 class MockSynapseType(object):
     model = None
 
+
 class MockPlasticSynapseType(object):
     model = "StdwaSA"
     postsynaptic_variable = "spikes"
 
+
 class MockStepCurrentSource(object):
     parameter_names = ['amplitudes', 'times']
+
     def __init__(self, **parameters):
         self._devices = []
 
@@ -78,8 +84,10 @@ class MockStepCurrentSource(object):
             if cell.local:
                self._devices += [cell]
 
+
 class MockDCSource(object):
     parameter_names = ['amplitude', 'start', 'stop']
+
     def __init__(self, **parameters):
         self._devices = []
 
@@ -90,19 +98,23 @@ class MockDCSource(object):
 
 
 class MockID(int):
+
     def __init__(self, n):
         int.__init__(n)
-        self.local = bool(n%2)
+        self.local = bool(n % 2)
         self.celltype = MockCellClass()
         self._cell = MockCell()
+
 
 class MockPopulation(populations.BasePopulation):
     celltype = MockCellClass()
     local_cells = [MockID(44), MockID(33)]
     all_cells = local_cells
     label = "mock population"
+
     def describe(self):
         return "mock population"
+
 
 class MockProjection(object):
     receptor_type = 'excitatory'
@@ -115,7 +127,7 @@ class MockProjection(object):
 class TestFunctions(unittest.TestCase):
 
     def test_load_mechanisms(self):
-        self.assertRaises(Exception, simulator.load_mechanisms, "/tmp") # not found
+        self.assertRaises(Exception, simulator.load_mechanisms, "/tmp")  # not found
     
     def test_is_point_process(self):
         section = h.Section()
@@ -127,7 +139,7 @@ class TestFunctions(unittest.TestCase):
     def test_native_rng_pick(self):
         rng = Mock()
         rng.seed = 28754
-        rarr = simulator.nativeRNG_pick(100, rng, 'uniform', [-3,6])
+        rarr = simulator.nativeRNG_pick(100, rng, 'uniform', [-3, 6])
         assert isinstance(rarr, numpy.ndarray)
         self.assertEqual(rarr.shape, (100,))
         assert -3 <= rarr.min() < -2.5
@@ -159,7 +171,7 @@ class TestInitializer(unittest.TestCase):
         orig_initialize = init._initialize
         init._initialize = Mock()
         h.finitialize(-65)
-        init._initialize.assert_called()
+        self.assertTrue(init._initialize.called)
         init._initialize = orig_initialize
 
     def test_register(self):
@@ -177,9 +189,9 @@ class TestInitializer(unittest.TestCase):
         pop = MockPopulation()
         init.register(cell, pop)
         init._initialize()
-        cell._cell.memb_init.assert_called()
+        self.assertTrue(cell._cell.memb_init.called)
         for pcell in pop.local_cells:
-            pcell._cell.memb_init.assert_called()
+            self.assertTrue(pcell._cell.memb_init.called)
 
     def test_clear(self):
         init = simulator.initializer
@@ -196,7 +208,6 @@ class TestState(unittest.TestCase):
     def test_register_gid(self):
         cell = MockCell()
         simulator.state.register_gid(84568345, cell.source, cell.source_section)
-
 
     def test_dt_property(self):
         simulator.state.dt = 0.01
@@ -215,7 +226,6 @@ class TestState(unittest.TestCase):
     #    self.assertEqual(simulator.state.running, False)
     #    self.assertEqual(simulator.state.t, 0.0)
     #    self.assertEqual(simulator.state.tstop, 0.0)
-    #    init._initialize.assert_called()
     #    init._initialize = orig_initialize
 
     #def test_run(self):
@@ -229,8 +239,8 @@ class TestState(unittest.TestCase):
         orig_pc = simulator.state.parallel_context
         simulator.state.parallel_context = Mock()
         simulator.state.finalize()
-        simulator.state.parallel_context.runworker.assert_called()
-        simulator.state.parallel_context.done.assert_called()
+        self.assertTrue(simulator.state.parallel_context.runworker.called)
+        self.assertTrue(simulator.state.parallel_context.done.called)
         simulator.state.parallel_context = orig_pc
 
 
@@ -240,7 +250,7 @@ class TestPopulation(unittest.TestCase):
     def setUp(self):
         sim.setup()
         self.p = sim.Population(4, sim.IF_cond_exp(**{'tau_m': 12.3,
-                                                      'cm': lambda i: 0.987 + 0.01*i,
+                                                      'cm': lambda i: 0.987 + 0.01 * i,
                                                       'i_offset': numpy.array([-0.21, -0.20, -0.19, -0.18])}))
 
     def test__get_parameters(self):
@@ -350,9 +360,9 @@ class TestCurrentSources(unittest.TestCase):
         self.assertEqual(len(cs._devices), 2)
 
     def test_inject_step_current(self):
-        cs = MockStepCurrentSource(amplitudes=[1,2,3], times=[0.5, 1.5, 2.5])
+        cs = MockStepCurrentSource(amplitudes=[1, 2, 3], times=[0.5, 1.5, 2.5])
         cs.inject_into(self.cells)
-        self.assertEqual(len(cs._devices), 2)# 2 local cells
+        self.assertEqual(len(cs._devices), 2)  # 2 local cells
         # need more assertions about iclamps, vectors
 
 
@@ -362,7 +372,7 @@ class TestRecorder(unittest.TestCase):
     def setUp(self):
         self.p = sim.Population(2, sim.IF_cond_exp())
         self.rec = recording.Recorder(self.p)
-        self.cells = self.p.all_cells #[MockID(22), MockID(29)]
+        self.cells = self.p.all_cells  # [MockID(22), MockID(29)]
 
     def tearDown(self):
         pass
@@ -424,7 +434,7 @@ class TestStandardIF(unittest.TestCase):
     
     def test_create_cond_exp(self):
         cell = cells.StandardIF("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
-        self.assertAlmostEqual(cell.area(), 1e5, places=10) # µm²
+        self.assertAlmostEqual(cell.area(), 1e5, places=10)  # µm²
         self.assertEqual(cell(0.5).cm, 0.246)
         self.assertEqual(cell(0.5).pas.g, 2e-5)
 

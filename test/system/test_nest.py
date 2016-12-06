@@ -14,7 +14,7 @@ except ImportError:
 def test_scenarios():
     for scenario in registry:
         if "nest" not in scenario.exclude:
-            scenario.description = scenario.__name__
+            scenario.description = "{}(nest)".format(scenario.__name__)
             if have_nest:
                 yield scenario, pyNN.nest
             else:
@@ -22,6 +22,8 @@ def test_scenarios():
 
 
 def test_record_native_model():
+    if not have_nest:
+        raise SkipTest
     nest = pyNN.nest
     from pyNN.random import RandomDistribution
 
@@ -59,12 +61,14 @@ def test_record_native_model():
     nest.run(tstop)
 
     vm = p1.get_data().segments[0].analogsignalarrays[0]
-    n_points = int(tstop/nest.get_time_step()) + 1
+    n_points = int(tstop / nest.get_time_step()) + 1
     assert_equal(vm.shape, (n_points, n_cells))
-    assert vm.max() > 0.0 # should have some spikes
+    assert vm.max() > 0.0  # should have some spikes
 
 
 def test_native_stdp_model():
+    if not have_nest:
+        raise SkipTest
     nest = pyNN.nest
     from pyNN.utility import init_logging
 
@@ -85,6 +89,8 @@ def test_native_stdp_model():
 
 
 def test_ticket240():
+    if not have_nest:
+        raise SkipTest
     nest = pyNN.nest
     nest.setup(threads=4)
     parameters = {'Tau_m': 17.0}
@@ -92,12 +98,14 @@ def test_ticket240():
     p2 = nest.Population(5, nest.native_cell_type("ht_neuron")(**parameters))
     conn = nest.AllToAllConnector()
     syn = nest.StaticSynapse(weight=1.0)
-    prj = nest.Projection(p1, p2, conn, syn, receptor_type='AMPA') # This should be a nonstandard receptor type but I don't know of one to use.
+    prj = nest.Projection(p1, p2, conn, syn, receptor_type='AMPA')  # This should be a nonstandard receptor type but I don't know of one to use.
     connections = prj.get(('weight',), format='list')
     assert len(connections) > 0
 
 
 def test_ticket244():
+    if not have_nest:
+        raise SkipTest
     nest = pyNN.nest
     nest.setup(threads=4)
     p1 = nest.Population(4, nest.IF_curr_exp())
@@ -112,6 +120,8 @@ def test_ticket244():
 
 def test_ticket236():
     """Calling get_spike_counts() in the middle of a run should not stop spike recording"""
+    if not have_nest:
+        raise SkipTest
     pynnn = pyNN.nest
     pynnn.setup()
     p1 = pynnn.Population(2, pynnn.IF_curr_alpha(), structure=pynnn.space.Grid2D())
@@ -119,17 +129,19 @@ def test_ticket236():
     src = pynnn.DCSource(amplitude=70)
     src.inject_into(p1[:])
     pynnn.run(50)
-    s1 = p1.get_spike_counts() # as expected, {1: 124, 2: 124}
+    s1 = p1.get_spike_counts()  # as expected, {1: 124, 2: 124}
     pynnn.run(50)
-    s2 = p1.get_spike_counts() # unexpectedly, still {1: 124, 2: 124}
+    s2 = p1.get_spike_counts()  # unexpectedly, still {1: 124, 2: 124}
     assert s1[p1[0]] < s2[p1[0]]
 
 
 def test_issue237():
+    if not have_nest:
+        raise SkipTest
     sim = pyNN.nest
     n_exc = 10
     sim.setup()
-    exc_noise_in_exc = sim.Population(n_exc, sim.SpikeSourcePoisson, {'rate' : 1000.})
+    exc_noise_in_exc = sim.Population(n_exc, sim.SpikeSourcePoisson, {'rate': 1000.})
     exc_cells = sim.Population(n_exc, sim.IF_cond_exp())
     exc_noise_connector = sim.OneToOneConnector()
     noise_ee_prj = sim.Projection(exc_noise_in_exc, exc_cells, exc_noise_connector, receptor_type="excitatory")
@@ -137,6 +149,8 @@ def test_issue237():
 
 
 def test_random_seeds():
+    if not have_nest:
+        raise SkipTest
     sim = pyNN.nest
     data = []
     for seed in (854947309, 470924491):
@@ -149,6 +163,8 @@ def test_random_seeds():
 
 
 def test_tsodyks_markram_synapse():
+    if not have_nest:
+        raise SkipTest
     import nest
     sim = pyNN.nest
     sim.setup()

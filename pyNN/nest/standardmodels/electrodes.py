@@ -8,7 +8,7 @@ Classes:
     ACSource           -- a sine modulated current.
 
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -43,7 +43,7 @@ class NestCurrentSource(StandardCurrentSource):
             self.cell_list = [cell for cell in cells]
         else:
             self.cell_list = cells
-        nest.DivergentConnect(self._device, self.cell_list)
+        nest.Connect(self._device, self.cell_list)
 
     def _delay_correction(self, value):
         return value - state.min_delay

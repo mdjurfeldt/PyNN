@@ -1,7 +1,7 @@
 """
 Definition of NativeCellType class for NEST.
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -26,7 +26,7 @@ def get_defaults(model_name):
               'recordables', 'state', 't_spike', 'tau_minus', 'tau_minus_triplet',
               'thread', 'vp', 'receptor_types', 'events', 'global_id',
               'element_type', 'type', 'type_id', 'has_connections', 'n_synapses',
-              'thread_local_id']
+              'thread_local_id', 'synaptic_elements']
     default_params = {}
     default_initial_values = {}
     for name, value in defaults.items():

@@ -13,7 +13,7 @@ Classes for defining STDP rules:
     GutigWeightDependence
     SpikePairRule
 
-:copyright: Copyright 2006-2015 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -35,14 +35,16 @@ class StaticSynapse(StandardSynapseType):
         'delay': None
     }
 
+
 class ElectricalSynapse(StandardSynapseType):
     """
     A bidirectional electrical synapse (gap junction) with fixed conductance
     """
        
     default_parameters = {
-        'weight': 0.0 # the (bidirectional) conductance of the gap junction (uS) 
+        'weight': 0.0  # the (bidirectional) conductance of the gap junction (uS)
     }
+
 
 class TsodyksMarkramSynapse(StandardSynapseType):
     """
@@ -66,11 +68,11 @@ class TsodyksMarkramSynapse(StandardSynapseType):
     .. _`Tsodyks, Uziel and Markram (2000)`: http://www.jneurosci.org/content/20/1/RC50.long
     """
     default_parameters = {
-        'weight': 0.0,
-        'delay': None,
-        'U': 0.5,   # use parameter
-        'tau_rec': 100.0, # depression time constant (ms)
-        'tau_facil': 0.0,   # facilitation time constant (ms)
+        'weight':     0.0,
+        'delay':     None,
+        'U':          0.5,  # use parameter
+        'tau_rec':  100.0,  # depression time constant (ms)
+        'tau_facil':  0.0,  # facilitation time constant (ms)
     }
 
 
@@ -103,6 +105,7 @@ class STDPMechanism(StandardSynapseType):
         weight-dependence, a timing-dependence, and, optionally, a voltage-
         dependence.
         """
+
         if timing_dependence:
             assert isinstance(timing_dependence, STDPTimingDependence)
         if weight_dependence:
@@ -137,7 +140,7 @@ class STDPMechanism(StandardSynapseType):
         td = self.timing_dependence
         wd = self.weight_dependence
         pm = td.possible_models.intersection(wd.possible_models)
-        if len(pm) == 0 :
+        if len(pm) == 0:
             raise errors.NoModelAvailableError("No available plasticity models")
         else:
             # we pass the set of models back to the simulator-specific module for it to deal with
@@ -145,19 +148,37 @@ class STDPMechanism(StandardSynapseType):
 
     def get_parameter_names(self):
         assert self.voltage_dependence is None  # once we have some models with v-dep, need to update the following
-        return ['weight', 'delay'] + self.timing_dependence.get_parameter_names() + self.weight_dependence.get_parameter_names()
+        return ['weight', 'delay', 'dendritic_delay_fraction'] + \
+                 self.timing_dependence.get_parameter_names() + \
+                   self.weight_dependence.get_parameter_names()
+
+    def has_parameter(self, name):
+        """Does this model have a parameter with the given name?"""
+        return name in self.get_parameter_names()
 
     def get_schema(self):
         """
         Returns the model schema: i.e. a mapping of parameter names to allowed
         parameter types.
         """
-        base_schema = {'weight': float, 'delay': float}
+        base_schema = {'weight': float, 'delay': float, 'dendritic_delay_fraction': float}
         for component in (self.timing_dependence, self.weight_dependence, self.voltage_dependence):
             if component:
                 base_schema.update((name, type(value))
                                    for name, value in component.default_parameters.items())
         return base_schema
+
+    @property
+    def parameter_space(self):
+        timing_parameters = self.timing_dependence.parameter_space
+        weight_parameters = self.weight_dependence.parameter_space
+        parameters = ParameterSpace({'weight': self.weight,
+                                     'delay': self.delay,
+                                     'dendritic_delay_fraction': self.dendritic_delay_fraction},
+                                    self.get_schema())
+        parameters.update(**timing_parameters)
+        parameters.update(**weight_parameters)
+        return parameters
 
     @property
     def native_parameters(self):
@@ -169,12 +190,13 @@ class STDPMechanism(StandardSynapseType):
         weight_parameters = self.weight_dependence.native_parameters
         parameters = self.translate(
                         ParameterSpace({'weight': self.weight,
-                                        'delay': self.delay}, self.get_schema()))
+                                        'delay': self.delay,
+                                        'dendritic_delay_fraction': self.dendritic_delay_fraction},
+                                       self.get_schema()))
         parameters.update(**timing_parameters)
         parameters.update(**weight_parameters)
         parameters.update(**self.timing_dependence.extra_parameters)
         parameters.update(**self.weight_dependence.extra_parameters)
-        parameters.update(dendritic_delay_fraction=self.dendritic_delay_fraction)
         return parameters
 
     def describe(self, template='stdpmechanism_default.txt', engine='default'):
@@ -208,8 +230,8 @@ class AdditiveWeightDependence(STDPWeightDependence):
             maximum synaptic weight.
     """
     default_parameters = {
-        'w_min':   0.0,
-        'w_max':   1.0,
+        'w_min': 0.0,
+        'w_max': 1.0,
     }
 
     def __init__(self, w_min=0.0, w_max=1.0):
@@ -232,8 +254,8 @@ class MultiplicativeWeightDependence(STDPWeightDependence):
             maximum synaptic weight.
     """
     default_parameters = {
-        'w_min'  : 0.0,
-        'w_max'  : 1.0,
+        'w_min': 0.0,
+        'w_max': 1.0,
     }
 
     def __init__(self, w_min=0.0, w_max=1.0):
@@ -256,8 +278,8 @@ class AdditivePotentiationMultiplicativeDepression(STDPWeightDependence):
     """
 
     default_parameters = {
-        'w_min'  : 0.0,
-        'w_max'  : 1.0,
+        'w_min': 0.0,
+        'w_max': 1.0,
     }
 
     def __init__(self, w_min=0.0,  w_max=1.0):
@@ -284,13 +306,13 @@ class GutigWeightDependence(STDPWeightDependence):
     """
 
     default_parameters = {
-        'w_min'   : 0.0,
-        'w_max'   : 1.0,
-        'mu_plus' : 0.5,
+        'w_min':    0.0,
+        'w_max':    1.0,
+        'mu_plus':  0.5,
         'mu_minus': 0.5
     }
 
-    def __init__(self, w_min=0.0,  w_max=1.0, mu_plus=0.5, mu_minus=0.5):
+    def __init__(self, w_min=0.0, w_max=1.0, mu_plus=0.5, mu_minus=0.5):
         """
         Create a new specification for the weight-dependence of an STDP rule.
         """
@@ -324,8 +346,8 @@ class SpikePairRule(STDPTimingDependence):
     default_parameters = {
         'tau_plus':  20.0,
         'tau_minus': 20.0,
-        'A_plus' : 0.01,
-        'A_minus': 0.01,
+        'A_plus':    0.01,
+        'A_minus':   0.01,
     }
 
     def __init__(self, tau_plus=20.0, tau_minus=20.0, A_plus=0.01, A_minus=0.01):
