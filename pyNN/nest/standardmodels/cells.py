@@ -391,3 +391,29 @@ class GIF_cond_exp(cells.GIF_cond_exp):
     nest_name = {"on_grid": "gif_cond_exp",
                  "off_grid": "gif_cond_exp"}
     standard_receptor_type = True
+
+
+class AdExp(cells.AdExp):
+
+    translations = build_translations(
+        ('cm',         'C_m',       1000.0),  # nF -> pF
+        ('tau_refrac', 't_ref'),
+        ('v_spike',    'V_peak'),
+        ('v_reset',    'V_reset'),
+        ('v_rest',     'E_L'),
+        ('tau_m',      'g_L',       "cm/tau_m*1000.0", "C_m/g_L"),
+        ('i_offset',   'I_e',       1000.0),  # nA -> pA
+        ('a',          'a'),
+        ('b',          'b',         1000.0),  # nA -> pA.
+        ('delta_T',    'Delta_T'),
+        ('tau_w',      'tau_w'),
+        ('v_thresh',   'V_th'),
+        ('tau_syn',  'tau_syn'),
+        ('e_syn',    'E_rev'),
+    )
+    nest_name = {"on_grid": "aeif_cond_alpha_multisynapse",
+                 "off_grid": "aeif_cond_alpha_multisynapse"}
+    standard_receptor_type = False
+
+    def get_receptor_type(self, name):
+        return self.receptor_types.index(name) + 1  # port numbers start at 1

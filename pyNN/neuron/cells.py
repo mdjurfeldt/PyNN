@@ -298,6 +298,50 @@ class BretteGerstnerIF(LeakySingleCompartmentNeuron):
         self.adexp.w = self.w_init
 
 
+class BretteGerstnerIF_multisyn(BretteGerstnerIF):
+    """docstring"""
+
+    def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
+                 v_thresh=-55, t_refrac=2, i_offset=0,
+                 tau_syn=None, e_syn=None,
+                 v_spike=0.0, v_reset=-70.6, A=4.0, B=0.0805, tau_w=144.0,
+                 delta=2.0):
+        LeakySingleCompartmentNeuron.__init__(self, syn_type, syn_shape, tau_m,
+                                              c_m, v_rest, i_offset,
+                                              1e6, 1e6, 0.0, -70.0)  # dummy values for unused e_syn and i_syn
+
+        # insert Brette-Gerstner spike mechanism
+        self.adexp = h.AdExpIF(0.5, sec=self)
+        self.source = self.adexp
+        self.rec = h.NetCon(self.source, None)
+
+        synapse_model = self.synapse_models[syn_type][syn_shape]
+        for receptor_name in tau_syn:
+            setattr(self, receptor_name,
+                    synapse_model(0.5, sec=self))  # better to keep these in a dict, rather than add attributes?
+
+        self.parameter_names = ['c_m', 'tau_m', 'v_rest', 'v_thresh', 't_refrac',
+                                'i_offset', 'v_reset', 'tau_syn',
+                                'A', 'B', 'tau_w', 'delta', 'v_spike']
+        if syn_type == 'conductance':
+            self.parameter_names.extend(['e_syn'])
+        self.set_parameters(locals())
+        self.w_init = None
+
+    def set_parameters(self, param_dict):
+        for name in self.parameter_names:
+            if name == 'tau_syn':
+                for receptor_type, value in param_dict[name].items():
+                    syn_obj = getattr(self, receptor_type)
+                    syn_obj.tau = value
+            elif name == "e_syn":
+                for receptor_type, value in param_dict[name].items():
+                    syn_obj = getattr(self, receptor_type)
+                    syn_obj.e = value
+            else:
+                setattr(self, name, param_dict[name])
+
+
 class Izhikevich_(BaseSingleCompartmentNeuron):
     """docstring"""
 

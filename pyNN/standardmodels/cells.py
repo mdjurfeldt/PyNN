@@ -29,7 +29,7 @@ Spike sources (input neurons)
 """
 
 from pyNN.standardmodels import StandardCellType
-from pyNN.parameters import Sequence
+from pyNN.parameters import ParameterSpace, Sequence
 
 
 class IF_curr_alpha(StandardCellType):
@@ -532,3 +532,81 @@ class SpikeSourceArray(StandardCellType):
     recordable = ['spikes']
     injectable = False
     receptor_types = ()
+
+
+class AdExp(StandardCellType):
+    """
+    Exponential integrate and fire neuron with spike triggered and
+    sub-threshold adaptation currents according to:
+
+    Brette R and Gerstner W (2005) Adaptive Exponential Integrate-and-Fire Model
+    as an Effective Description of Neuronal Activity. J Neurophysiol 94:3637-3642
+
+    The model is the same as EIF_cond_exp_isfa_ista but with an unlimited number of different
+    synaptic time constants.
+    """
+
+    default_parameters = {
+        'cm': 0.281,  # Capacitance of the membrane in nF
+        'tau_refrac': 0.1,  # Duration of refractory period in ms.
+        'v_spike': -40.0,  # Spike detection threshold in mV.
+        'v_reset': -70.6,  # Reset value for V_m after a spike. In mV.
+        'v_rest': -70.6,  # Resting membrane potential (Leak reversal potential) in mV.
+        'tau_m': 9.3667,  # Membrane time constant in ms
+        'i_offset': 0.0,  # Offset current in nA
+        'a': 4.0,  # Subthreshold adaptation conductance in nS.
+        'b': 0.0805,  # Spike-triggered adaptation in nA
+        'delta_T': 2.0,  # Slope factor in mV
+        'tau_w': 144.0,  # Adaptation time constant in ms
+        'v_thresh': -50.4,  # Spike initiation threshold in mV
+        'e_syn': {},  # synaptic reversal potentials in mV.
+        'tau_syn': {},  # time constant(s) of the synaptic conductance in ms.
+    }
+    injectable = True
+    receptor_types = ()  # should be a property
+
+    def __init__(self, **parameters):
+        """
+        `parameters` should be a mapping object, e.g. a dict
+        """
+        self.receptor_types = list(sorted(parameters["tau_syn"].keys()))
+        self.parameter_space = ParameterSpace(self.default_parameters,
+                                              self.get_schema(),
+                                              shape=None)
+        if parameters:
+            self.parameter_space.update(**parameters)
+
+    @property
+    def recordable(self):
+        return ['spikes', 'v', 'w'] #+ ['gsyn_{}'.format(name) for name in self.receptor_types]
+
+    @property
+    def units(self):
+        _units = {
+            'v': 'mV',
+            'w': 'nA'
+        }
+        #for name in self.receptor_types:
+        #    _units['gsyn_{}'.format(name)] = 'uS'
+        return _units
+
+    @property
+    def default_initial_values(self):
+        init_val = {
+            'v': -70.6,  # 'v_rest',
+            'w': 0.0,
+        }
+        #for name in self.receptor_types:
+        #    init_val['gsyn_{}'.format(name)] = 0.0
+        return init_val
+
+    def translate(self, parameters):
+        sub_ps = {}
+        for name in ("tau_syn", "e_syn"):
+            native_name = self.translations[name]['translated_name']
+            sub_ps[native_name] = parameters[name] ##parameters.pop(name)
+            ##parameters[name] = None
+        ps = super(AdExp, self).translate(parameters)
+        for name, value in sub_ps.items():
+            ps[name] = value
+        return ps

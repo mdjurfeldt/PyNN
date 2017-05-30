@@ -286,21 +286,25 @@ class ParameterSpace(object):
                     raise errors.NonExistentParameterError(name,
                                                            model_name,
                                                            valid_parameter_names=self.schema.keys())
-                if expected_dtype == Sequence and isinstance(value, collections.Sized):
-                    if len(value) == 0:
-                        value = Sequence([])
-                    elif not isinstance(value[0], Sequence):  # may be a more generic way to do it, but for now this special-casing seems like the most robust approach
-                        if isinstance(value[0], collections.Sized):  # e.g. list of tuples
-                            value = type(value)([Sequence(x) for x in value])
-                        else:
-                            value = Sequence(value)
-                try:
-                    self._parameters[name] = LazyArray(value, shape=self._shape,
-                                                       dtype=expected_dtype)
-                except (TypeError, errors.InvalidParameterValueError):
-                    raise errors.InvalidParameterValueError("For parameter %s expected %s, got %s" % (name, expected_dtype, type(value)))
-                except ValueError as err:
-                    raise errors.InvalidDimensionsError(err)  # maybe put the more specific error classes into lazyarray
+
+                if expected_dtype == dict:
+                    self._parameters[name] = ParameterSpace(value)  # todo: hierarchical schemas
+                else:
+                    if expected_dtype == Sequence and isinstance(value, collections.Sized):
+                        if len(value) == 0:
+                            value = Sequence([])
+                        elif not isinstance(value[0], Sequence):  # may be a more generic way to do it, but for now this special-casing seems like the most robust approach
+                            if isinstance(value[0], collections.Sized):  # e.g. list of tuples
+                                value = type(value)([Sequence(x) for x in value])
+                            else:
+                                value = Sequence(value)
+                    try:
+                        self._parameters[name] = LazyArray(value, shape=self._shape,
+                                                           dtype=expected_dtype)
+                    except (TypeError, errors.InvalidParameterValueError):
+                        raise errors.InvalidParameterValueError("For parameter %s expected %s, got %s" % (name, expected_dtype, type(value)))
+                    except ValueError as err:
+                        raise errors.InvalidDimensionsError(err)  # maybe put the more specific error classes into lazyarray
         else:
             for name, value in parameters.items():
                 self._parameters[name] = LazyArray(value, shape=self._shape)
@@ -349,6 +353,7 @@ class ParameterSpace(object):
             self._evaluated_shape = partial_shape(mask, self._shape)
         self._evaluated = True
         # should possibly update self.shape according to mask?
+        return self
 
     def as_dict(self):
         """
@@ -359,8 +364,11 @@ class ParameterSpace(object):
             raise Exception("Must call evaluate() method before calling ParameterSpace.as_dict()")
         D = {}
         for name, value in self._parameters.items():
-            D[name] = value
-            assert not isinstance(D[name], LazyArray)  # should all have been evaluated by now
+            if isinstance(value, ParameterSpace):
+                D[name] = value.as_dict()
+            else:
+                D[name] = value
+                assert not isinstance(D[name], LazyArray)  # should all have been evaluated by now
         return D
 
     def __iter__(self):
@@ -391,6 +399,13 @@ class ParameterSpace(object):
             for name, value in self._parameters.items():
                 if is_listlike(value):
                     D[name] = value[i]
+                elif isinstance(value, ParameterSpace):
+                    D[name] = {}
+                    for name2, value2 in value.items():  # todo: make this recursive, to support more than one level of hierarchy
+                        if is_listlike(value2):
+                            D[name][name2] = value2[i]
+                        else:
+                            D[name][name2] = value2
                 else:
                     D[name] = value
                 assert not isinstance(D[name], LazyArray)  # should all have been evaluated by now

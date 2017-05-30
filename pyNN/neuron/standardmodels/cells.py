@@ -13,7 +13,7 @@ from pyNN.neuron.cells import (StandardIF, SingleCompartmentTraub,
                                RandomGammaSpikeSource,
                                RandomPoissonRefractorySpikeSource,
                                BretteGerstnerIF, GsfaGrrIF, Izhikevich_,
-                               GIFNeuron)
+                               GIFNeuron, BretteGerstnerIF_multisyn)
 import logging
 
 logger = logging.getLogger("PyNN")
@@ -305,3 +305,26 @@ class GIF_cond_exp(base_cells.GIF_cond_exp):
     model = GIFNeuron
     extra_parameters = {'syn_type': 'conductance',
                         'syn_shape': 'exp'}
+
+
+class AdExp(base_cells.AdExp):
+
+    translations = build_translations(
+        ('cm', 'c_m'),
+        ('tau_refrac', 't_refrac'),
+        ('v_spike', 'v_spike'),
+        ('v_reset', 'v_reset'),
+        ('v_rest', 'v_rest'),
+        ('tau_m', 'tau_m'),
+        ('i_offset', 'i_offset'),
+        ('a', 'A', 0.001),  # nS --> uS
+        ('b', 'B'),
+        ('delta_T', 'delta'),
+        ('tau_w', 'tau_w'),
+        ('v_thresh', 'v_thresh'),
+        ('e_syn', 'e_syn'),
+        ('tau_syn', 'tau_syn'),
+    )
+    model = BretteGerstnerIF_multisyn
+    extra_parameters = {'syn_type': 'conductance',
+                        'syn_shape': 'alpha'}
