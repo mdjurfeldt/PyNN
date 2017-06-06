@@ -88,8 +88,7 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
             cell_parameters['tau_stc'] = (cell_parameters.pop('tau_stc1'), cell_parameters.pop('tau_stc2'), cell_parameters.pop('tau_stc3'))
             cell_parameters['q_stc'] = (cell_parameters.pop('q_stc1'), cell_parameters.pop('q_stc2'), cell_parameters.pop('q_stc3'))
         # the following is a similar hack for multi-synapse models
-        if 'tau_syn' in cell_parameters:
-            assert 'E_rev' in cell_parameters
+        if 'tau_syn' in cell_parameters and 'E_rev' in cell_parameters:
             receptor_types = list(sorted(cell_parameters["tau_syn"].keys()))
             cell_parameters['tau_syn'] = [cell_parameters['tau_syn'][rt] for rt in receptor_types]
             cell_parameters['E_rev'] = [cell_parameters['E_rev'][rt] for rt in receptor_types]
