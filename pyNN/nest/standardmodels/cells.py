@@ -393,6 +393,45 @@ class GIF_cond_exp(cells.GIF_cond_exp):
     standard_receptor_type = True
 
 
+class RoessertEtAl(cells.RoessertEtAl):
+
+    translations = build_translations(
+        ('v_rest',     'E_L'),
+        ('cm',         'C_m',       1000.0),  # nF -> pF
+        ('tau_m',      'g_L',       "cm/tau_m*1000.0", "C_m/g_L"),
+        ('tau_refrac', 't_ref'),
+        ('tau_syn_fast_rise',  'tau_r_fast'),
+        ('tau_syn_fast_decay', 'tau_d_fast'),
+        ('tau_syn_slow_rise',  'tau_r_slow'),
+        ('tau_syn_slow_decay', 'tau_d_slow'),
+        ('e_syn_fast', 'E_rev_B'),
+        ('e_syn_slow', 'E_rev'),
+        ('v_reset',    'V_reset'),
+        ('i_offset',   'I_e',       1000.0),  # nA -> pA
+        ('delta_v',    'Delta_V'),
+        ('v_t_star',   'V_T_star'),
+        ('lambda0',    'lambda_0'),
+        ('tau_eta1',   'tau_stc1'),
+        ('tau_eta2',   'tau_stc2'),
+        ('tau_eta3',   'tau_stc3'),
+        ('tau_gamma1', 'tau_sfa1'),
+        ('tau_gamma2', 'tau_sfa2'),
+        ('tau_gamma3', 'tau_sfa3'),
+        ('a_eta1',     'q_stc1',    1000.0),  # nA -> pA
+        ('a_eta2',     'q_stc2',    1000.0),
+        ('a_eta3',     'q_stc3',    1000.0),
+        ('a_gamma1',   'q_sfa1'),
+        ('a_gamma2',   'q_sfa2'),
+        ('a_gamma3',   'q_sfa3'),
+    )
+    nest_name = {"on_grid": "rossert_et_al",
+                 "off_grid": "rossert_et_al"}
+    standard_receptor_type = False
+
+    def get_receptor_type(self, name):
+        return self.receptor_types.index(name) + 1  # port numbers start at 1
+
+
 class AdExp(cells.AdExp):
 
     translations = build_translations(

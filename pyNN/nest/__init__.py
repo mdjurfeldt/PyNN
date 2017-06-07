@@ -53,6 +53,11 @@ try:
 except nest.NESTError as err:
     warnings.warn("Unable to install NEST extensions. Certain models may not be available.\nFurther details: {}".format(err))
 
+try:
+    nest.Install('rossert_et_almodule')
+except nest.NESTError as err:
+    warnings.warn("Unable to install NEST extensions for Roessert model.\nFurther details: {}".format(err))
+
 
 # ==============================================================================
 #   Utility functions

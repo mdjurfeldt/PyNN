@@ -111,6 +111,18 @@ class StochasticTsodyksMarkramSynapse(synapses.StochasticTsodyksMarkramSynapse, 
     nest_name = 'stochastic_stp_synapse'
 
 
+class TsodyksMarkramSynapseEM(synapses.TsodyksMarkramSynapse, NESTSynapseMixin):
+
+    translations = build_translations(
+        ('weight', 'weight', 1000.0),
+        ('delay', 'delay'),
+        ('U', 'U'),
+        ('tau_rec', 'tau_rec'),
+        ('tau_facil', 'tau_fac')
+    )
+    nest_name = 'MarkramConnection'
+
+
 class MultiQuantalSynapse(synapses.MultiQuantalSynapse, NESTSynapseMixin):
 
     translations = build_translations(

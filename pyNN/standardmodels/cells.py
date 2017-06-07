@@ -610,3 +610,86 @@ class AdExp(StandardCellType):
         for name, value in sub_ps.items():
             ps[name] = value
         return ps
+
+
+class RoessertEtAl(StandardCellType):
+    """
+    docstring needed
+    """
+
+    default_parameters = {
+        'v_rest': -65.0,  # Resting membrane potential in mV.
+        'cm': 1.0,  # Capacity of the membrane in nF
+        'tau_m': 20.0,  # Membrane time constant in ms.
+        'tau_refrac': 4.0,  # Duration of refractory period in ms.
+        'v_reset': -65.0,  # Reset potential after a spike in mV.
+        'i_offset': 0.0,  # Offset current in nA
+        'delta_v': 0.5,  # Threshold sharpness in mV.
+        'v_t_star': -48.0,  # Threshold baseline in mV.
+        'lambda0': 1.0,  # Firing intensity at threshold in Hz.
+        'tau_eta1': 1.0,  # }
+        'tau_eta2': 10.0,  # } Time constants for spike-triggered current in ms.
+        'tau_eta3': 100.0,  # }
+        'tau_gamma1': 1.0,  # }
+        'tau_gamma2': 10.0,  # } Time constants for spike-frequency adaptation in ms.
+        'tau_gamma3': 100.0,  # }
+        'a_eta1': 1.0,  # }
+        'a_eta2': 1.0,  # } Post-spike increments for spike-triggered current in nA
+        'a_eta3': 1.0,  # }
+        'a_gamma1': 1.0,  # }
+        'a_gamma2': 1.0,  # } Post-spike increments for moving threshold in mV
+        'a_gamma3': 1.0,  # }
+        'e_syn_fast': {},  # synaptic reversal potentials in mV.
+        'e_syn_slow': {},  # synaptic reversal potentials in mV.
+        'tau_syn_fast_rise': {},   # time constant(s) of the synaptic conductance in ms.
+        'tau_syn_fast_decay': {},  # time constant(s) of the synaptic conductance in ms.
+        'tau_syn_slow_rise': {},  # time constant(s) of the synaptic conductance in ms.
+        'tau_syn_slow_decay': {},  # time constant(s) of the synaptic conductance in ms.
+    }
+
+    def __init__(self, **parameters):
+        """
+        `parameters` should be a mapping object, e.g. a dict
+        """
+        self.receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys())) + list(sorted(parameters["tau_syn_slow_rise"].keys()))
+        self.parameter_space = ParameterSpace(self.default_parameters,
+                                              self.get_schema(),
+                                              shape=None)
+        if parameters:
+            self.parameter_space.update(**parameters)
+
+    @property
+    def recordable(self):
+        return ['spikes', 'v', 'i_eta', 'v_t'] #+ ['gsyn_{}'.format(name) for name in self.receptor_types]
+
+    @property
+    def units(self):
+        _units = {
+            'v': 'mV',
+            'i_eta': 'nA',
+            'v_t': 'mV',
+        }
+        #for name in self.receptor_types:
+        #    _units['gsyn_{}'.format(name)] = 'uS'
+        return _units
+
+    @property
+    def default_initial_values(self):
+        init_val = {
+            'v': -65.0,
+            'v_t': -48.0,
+            'i_eta': 0.0,
+        }
+        #for name in self.receptor_types:
+        #    init_val['gsyn_{}'.format(name)] = 0.0
+        return init_val
+
+    def translate(self, parameters):
+        sub_ps = {}
+        for name in ("tau_syn_fast_rise", "tau_syn_fast_decay", "tau_syn_slow_rise", "tau_syn_slow_decay", "e_syn_fast", "e_syn_slow"):
+            native_name = self.translations[name]['translated_name']
+            sub_ps[native_name] = parameters[name]
+        ps = super(RoessertEtAl, self).translate(parameters)
+        for name, value in sub_ps.items():
+            ps[name] = value
+        return ps
