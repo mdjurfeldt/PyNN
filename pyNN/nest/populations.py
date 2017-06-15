@@ -93,14 +93,16 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
             cell_parameters['tau_syn'] = [cell_parameters['tau_syn'][rt] for rt in receptor_types]
             cell_parameters['E_rev'] = [cell_parameters['E_rev'][rt] for rt in receptor_types]
         if 'tau_r_fast' in cell_parameters:  # RoessertEtAl neuron
-            fast_receptor_types = list(sorted(cell_parameters["tau_r_fast"].keys()))
-            cell_parameters['tau_r_fast'] = [cell_parameters['tau_r_fast'][rt] for rt in fast_receptor_types]
-            cell_parameters['tau_d_fast'] = [cell_parameters['tau_d_fast'][rt] for rt in fast_receptor_types]
-            cell_parameters['E_rev_B'] = [cell_parameters['E_rev_B'][rt] for rt in fast_receptor_types]
-            slow_receptor_types = list(sorted(cell_parameters["tau_r_slow"].keys()))
-            cell_parameters['tau_r_slow'] = [cell_parameters['tau_r_slow'][rt] for rt in slow_receptor_types]
-            cell_parameters['tau_d_slow'] = [cell_parameters['tau_d_slow'][rt] for rt in slow_receptor_types]
-            cell_parameters['E_rev'] = [cell_parameters['E_rev'][rt] for rt in slow_receptor_types]
+            receptor_types = list(sorted(cell_parameters["tau_r_fast"].keys()))
+            cell_parameters['tau_r_fast'] = [cell_parameters['tau_r_fast'][rt] for rt in receptor_types]
+            cell_parameters['tau_d_fast'] = [cell_parameters['tau_d_fast'][rt] for rt in receptor_types]
+            cell_parameters['E_rev_B'] = [cell_parameters['E_rev_B'][rt] for rt in receptor_types]
+            cell_parameters['tau_r_slow'] = [cell_parameters['tau_r_slow'][rt] for rt in receptor_types]
+            cell_parameters['tau_d_slow'] = [cell_parameters['tau_d_slow'][rt] for rt in receptor_types]
+            cell_parameters['E_rev'] = [cell_parameters['E_rev'][rt] for rt in receptor_types]
+            cell_parameters['ratio_slow'] = [cell_parameters['ratio_slow'][rt] for rt in receptor_types]
+            cell_parameters['mg'] = [cell_parameters['mg'][rt] for rt in receptor_types]
+            cell_parameters['tau_corr'] = [cell_parameters['tau_corr'][rt] for rt in receptor_types]
     else:
         parameter_space.evaluate(mask=mask_local)
         cell_parameters = list(parameter_space)  # may not be the most efficient way.
@@ -117,14 +119,16 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
                 D['tau_syn'] = [D['tau_syn'][rt] for rt in receptor_types]
                 D['E_rev'] = [D['E_rev'][rt] for rt in receptor_types]
             if 'tau_r_fast' in D:  # RoessertEtAl neuron
-                fast_receptor_types = list(sorted(D["tau_r_fast"].keys()))
-                D['tau_r_fast'] = [D['tau_r_fast'][rt] for rt in fast_receptor_types]
-                D['tau_d_fast'] = [D['tau_d_fast'][rt] for rt in fast_receptor_types]
-                D['E_rev_B'] = [D['E_rev_B'][rt] for rt in fast_receptor_types]
-                slow_receptor_types = list(sorted(D["tau_r_slow"].keys()))
-                D['tau_r_slow'] = [D['tau_r_slow'][rt] for rt in slow_receptor_types]
-                D['tau_d_slow'] = [D['tau_d_slow'][rt] for rt in slow_receptor_types]
-                D['E_rev'] = [D['E_rev'][rt] for rt in slow_receptor_types]
+                receptor_types = list(sorted(D["tau_r_fast"].keys()))
+                D['tau_r_fast'] = [D['tau_r_fast'][rt] for rt in receptor_types]
+                D['tau_d_fast'] = [D['tau_d_fast'][rt] for rt in receptor_types]
+                D['E_rev_B'] = [D['E_rev_B'][rt] for rt in receptor_types]
+                D['tau_r_slow'] = [D['tau_r_slow'][rt] for rt in receptor_types]
+                D['tau_d_slow'] = [D['tau_d_slow'][rt] for rt in receptor_types]
+                D['E_rev'] = [D['E_rev'][rt] for rt in receptor_types]
+                D['ratio_slow'] = [D['ratio_slow'][rt] for rt in receptor_types]
+                D['mg'] = [D['mg'][rt] for rt in receptor_types]
+                D['tau_corr'] = [D['tau_corr'][rt] for rt in receptor_types]
             for name, val in D.items():
                 if isinstance(val, Sequence):
                     D[name] = val.value

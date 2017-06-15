@@ -645,13 +645,17 @@ class RoessertEtAl(StandardCellType):
         'tau_syn_fast_decay': {},  # time constant(s) of the synaptic conductance in ms.
         'tau_syn_slow_rise': {},  # time constant(s) of the synaptic conductance in ms.
         'tau_syn_slow_decay': {},  # time constant(s) of the synaptic conductance in ms.
+        'ratio_slow_fast': {},
+        'mg_conc': {},
+        'tau_corr': {},
+        'g_max': 0.001
     }
 
     def __init__(self, **parameters):
         """
         `parameters` should be a mapping object, e.g. a dict
         """
-        self.receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys())) + list(sorted(parameters["tau_syn_slow_rise"].keys()))
+        self.receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys()))
         self.parameter_space = ParameterSpace(self.default_parameters,
                                               self.get_schema(),
                                               shape=None)
@@ -660,13 +664,14 @@ class RoessertEtAl(StandardCellType):
 
     @property
     def recordable(self):
-        return ['spikes', 'v', 'i_eta', 'v_t'] #+ ['gsyn_{}'.format(name) for name in self.receptor_types]
+        return ['spikes', 'v', 'i_eta', 'v_t', 'i_syn'] #+ ['gsyn_{}'.format(name) for name in self.receptor_types]
 
     @property
     def units(self):
         _units = {
             'v': 'mV',
             'i_eta': 'nA',
+            'i_syn': 'nA',
             'v_t': 'mV',
         }
         #for name in self.receptor_types:
@@ -679,6 +684,7 @@ class RoessertEtAl(StandardCellType):
             'v': -65.0,
             'v_t': -48.0,
             'i_eta': 0.0,
+            'i_syn': 0.0
         }
         #for name in self.receptor_types:
         #    init_val['gsyn_{}'.format(name)] = 0.0
@@ -686,7 +692,10 @@ class RoessertEtAl(StandardCellType):
 
     def translate(self, parameters):
         sub_ps = {}
-        for name in ("tau_syn_fast_rise", "tau_syn_fast_decay", "tau_syn_slow_rise", "tau_syn_slow_decay", "e_syn_fast", "e_syn_slow"):
+        for name in ("tau_syn_fast_rise", "tau_syn_fast_decay",
+                     "tau_syn_slow_rise", "tau_syn_slow_decay",
+                     "e_syn_fast", "e_syn_slow",
+                     "ratio_slow_fast", "mg_conc", "tau_corr"):
             native_name = self.translations[name]['translated_name']
             sub_ps[native_name] = parameters[name]
         ps = super(RoessertEtAl, self).translate(parameters)

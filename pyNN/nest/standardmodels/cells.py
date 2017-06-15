@@ -406,6 +406,10 @@ class RoessertEtAl(cells.RoessertEtAl):
         ('tau_syn_slow_decay', 'tau_d_slow'),
         ('e_syn_fast', 'E_rev_B'),
         ('e_syn_slow', 'E_rev'),
+        ('ratio_slow_fast', 'ratio_slow'),
+        ('mg_conc', 'mg'),
+        ('tau_corr', 'tau_corr'),
+        ('g_max', 'g_max'),
         ('v_reset',    'V_reset'),
         ('i_offset',   'I_e',       1000.0),  # nA -> pA
         ('delta_v',    'Delta_V'),

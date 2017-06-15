@@ -101,7 +101,7 @@ class Projection(common.Projection):
         return (simulator.Connection(self, i) for i in range(len(self)))
 
     def _set_tsodyks_params(self):
-        if 'tsodyks' in self.nest_synapse_model:
+        if 'tsodyks_synapse' in self.nest_synapse_model:
             # there should be a better way to do this.
             # In particular, if the synaptic time constant is changed after
             # creating the Projection, tau_psc ought to be changed as well.
