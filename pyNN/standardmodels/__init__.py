@@ -80,7 +80,7 @@ class StandardModelType(models.BaseModelType):
             D = self.translations[name]
             pname = D['translated_name']
             if callable(D['forward_transform']):
-                pval = D['forward_transform'](**_parameters)
+                pval = D['forward_transform'](name, **_parameters)
             else:
                 try:
                     pval = eval(D['forward_transform'], globals(), _parameters)
@@ -101,7 +101,7 @@ class StandardModelType(models.BaseModelType):
             tname = D['translated_name']
             if tname in native_parameters.keys():
                 if callable(D['reverse_transform']):
-                    standard_parameters[name] = D['reverse_transform'](**native_parameters)
+                    standard_parameters[name] = D['reverse_transform'](tname, **native_parameters)
                 else:
                     try:
                         standard_parameters[name] = eval(D['reverse_transform'], {}, native_parameters)

@@ -6,7 +6,9 @@ Standard cells for nest
 
 """
 
+from collections import defaultdict
 from pyNN.standardmodels import cells, build_translations
+from pyNN.parameters import Sequence
 from .. import simulator
 
 
@@ -216,8 +218,8 @@ class SpikeSourcePoisson(cells.SpikeSourcePoisson):
     }
 
 
-def unsupported(parameter_name, valid_value):
-    def error_if_invalid(**parameters):
+def unsupported(valid_value):
+    def error_if_invalid(parameter_name, **parameters):
         if parameters[parameter_name].base_value != valid_value:
             raise NotImplementedError("The `{}` parameter is not supported in NEST".format(parameter_name))
         return valid_value
@@ -231,8 +233,8 @@ class SpikeSourcePoissonRefractory(cells.SpikeSourcePoissonRefractory):
     translations = build_translations(
         ('rate',       'rate'),
         ('tau_refrac', 'dead_time'),
-        ('start',    'UNSUPPORTED', unsupported('start', 0.0), None),
-        ('duration', 'UNSUPPORTED', unsupported('duration', 1e10), None),
+        ('start',    'UNSUPPORTED', unsupported(0.0), None),
+        ('duration', 'UNSUPPORTED', unsupported(1e10), None),
     )
     nest_name = {"on_grid": 'ppd_sup_generator',
                  "off_grid": 'ppd_sup_generator'}
@@ -251,8 +253,8 @@ class SpikeSourceGamma(cells.SpikeSourceGamma):
     translations = build_translations(
         ('alpha',    'gamma_shape'),
         ('beta',     'rate',        'beta/alpha',   'gamma_shape * rate'),
-        ('start',    'UNSUPPORTED', unsupported('start', 0.0), None),
-        ('duration', 'UNSUPPORTED', unsupported('duration', 1e10), None),
+        ('start',    'UNSUPPORTED', unsupported(0.0), None),
+        ('duration', 'UNSUPPORTED', unsupported(1e10), None),
     )
     nest_name = {"on_grid": 'gamma_sup_generator',
                  "off_grid": 'gamma_sup_generator'}
@@ -282,7 +284,7 @@ class SpikeSourceInhGamma(cells.SpikeSourceInhGamma):
     }
 
 
-def adjust_spike_times_forward(spike_times):
+def adjust_spike_times_forward(parameter_name, spike_times):
     """
     Since this cell type requires parrot neurons, we have to adjust the
     spike times to account for the transmission delay from device to
@@ -292,7 +294,7 @@ def adjust_spike_times_forward(spike_times):
     return spike_times - simulator.state.min_delay
 
 
-def adjust_spike_times_backward(spike_times):
+def adjust_spike_times_backward(parameter_name, spike_times):
     """
     Since this cell type requires parrot neurons, we have to adjust the
     spike times to account for the transmission delay from device to
@@ -385,32 +387,63 @@ class GIF_cond_exp(cells.GIF_cond_exp):
     standard_receptor_type = True
 
 
+def translate_multisyn(name, **parameters):
+    """
+    PyNN stores multisynapse parameters in a dict structure,
+    whereas NEST uses lists.
+    """
+    if 'tau_syn' in parameters and 'e_syn' in parameters:
+        receptor_types = list(sorted(parameters["tau_syn"].keys()))
+    elif 'tau_syn_fast_rise' in parameters:  # RoessertEtAl neuron
+        receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys()))
+    else:
+        raise Exception("Cannot translate these parameters")
+    return [parameters[name][rt] for rt in receptor_types]
+
+
+def reverse_translate_multisyn(name, **parameters):
+    """
+    PyNN stores multisynapse parameters in a dict structure,
+    whereas NEST uses lists.
+    """
+    if 'tau_syn' in parameters and 'E_rev' in parameters:
+        receptor_types = list(sorted(parameters["tau_syn"].keys()))
+    elif 'tau_r_fast' in parameters:  # RoessertEtAl neuron
+        receptor_types = list(sorted(parameters["tau_r_fast"].keys()))
+    else:
+        raise Exception("Cannot translate these parameters")
+    translated_parameters = defaultdict({})
+    for rt, value in zip(receptor_types, parameters[name]):
+        translated_parameters[name][rt] = value
+    return translated_parameters
+
+
 class RoessertEtAl(cells.RoessertEtAl):
 
     translations = build_translations(
-        ('v_rest',     'E_L'),
-        ('cm',         'C_m',       1000.0),  # nF -> pF
-        ('tau_m',      'g_L',       "cm/tau_m*1000.0", "C_m/g_L"),
-        ('tau_refrac', 't_ref'),
-        ('tau_syn_fast_rise',  'tau_r_fast'),
-        ('tau_syn_fast_decay', 'tau_d_fast'),
-        ('tau_syn_slow_rise',  'tau_r_slow'),
-        ('tau_syn_slow_decay', 'tau_d_slow'),
-        ('e_syn_fast', 'E_rev_B'),
-        ('e_syn_slow', 'E_rev'),
-        ('ratio_slow_fast', 'ratio_slow'),
-        ('mg_conc',    'mg'),
-        ('tau_corr',   'tau_corr'),
-        ('g_max',      'g_max'),
-        ('v_reset',    'V_reset'),
-        ('i_offset',   'I_e',       1000.0),  # nA -> pA
-        ('delta_v',    'Delta_V'),
-        ('v_t_star',   'V_T_star'),
-        ('lambda0',    'lambda_0'),
-        ('tau_eta',   'tau_stc'),
-        ('tau_gamma', 'tau_sfa'),
-        ('a_eta',     'q_stc',    1000.0),  # nA -> pA
-        ('a_gamma',   'q_sfa'),
+        ('v_rest',             'E_L'),
+        ('cm',                 'C_m',         1000.0),  # nF -> pF
+        ('tau_m',              'g_L',         "cm/tau_m*1000.0", "C_m/g_L"),
+        ('tau_refrac',         't_ref'),
+        ('tau_syn_fast_rise',  'tau_r_fast',  translate_multisyn, reverse_translate_multisyn),
+        ('tau_syn_fast_decay', 'tau_d_fast',  translate_multisyn, reverse_translate_multisyn),
+        ('tau_syn_slow_rise',  'tau_r_slow',  translate_multisyn, reverse_translate_multisyn),
+        ('tau_syn_slow_decay', 'tau_d_slow',  translate_multisyn, reverse_translate_multisyn),
+        ('e_syn_fast',         'E_rev_B',     translate_multisyn, reverse_translate_multisyn),
+        ('e_syn_slow',         'E_rev',       translate_multisyn, reverse_translate_multisyn),
+        ('ratio_slow_fast',    'ratio_slow',  translate_multisyn, reverse_translate_multisyn),
+        ('mg_conc',            'mg',          translate_multisyn, reverse_translate_multisyn),
+        ('tau_corr',           'tau_corr',    translate_multisyn, reverse_translate_multisyn),
+        ('g_max',              'g_max'),
+        ('v_reset',            'V_reset'),
+        ('i_offset',           'I_e',         1000.0),  # nA -> pA
+        ('delta_v',            'Delta_V'),
+        ('v_t_star',           'V_T_star'),
+        ('lambda0',            'lambda_0'),
+        ('tau_eta',            'tau_stc'),
+        ('tau_gamma',          'tau_sfa'),
+        ('a_eta',              'q_stc',       1000.0),  # nA -> pA
+        ('a_gamma',            'q_sfa'),
     )
     nest_name = {"on_grid": "rossert_et_al",
                  "off_grid": "rossert_et_al"}
@@ -435,8 +468,8 @@ class AdExp(cells.AdExp):
         ('delta_T',    'Delta_T'),
         ('tau_w',      'tau_w'),
         ('v_thresh',   'V_th'),
-        ('tau_syn',  'tau_syn'),
-        ('e_syn',    'E_rev'),
+        ('tau_syn',    'tau_syn',   translate_multisyn, reverse_translate_multisyn),
+        ('e_syn',      'E_rev',     translate_multisyn, reverse_translate_multisyn),
     )
     nest_name = {"on_grid": "aeif_cond_alpha_multisynapse",
                  "off_grid": "aeif_cond_alpha_multisynapse"}
