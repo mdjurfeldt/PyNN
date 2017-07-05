@@ -288,7 +288,7 @@ class ParameterSpace(object):
                                                            valid_parameter_names=self.schema.keys())
 
                 if expected_dtype == dict:
-                    self._parameters[name] = ParameterSpace(value)  # todo: hierarchical schemas
+                    self._parameters[name] = ParameterSpace(value, shape=self.shape)  # todo: hierarchical schemas
                 else:
                     if expected_dtype == Sequence and isinstance(value, collections.Sized):
                         if len(value) == 0:
@@ -477,6 +477,12 @@ def simplify(value):
     share. Otherwise, pass the value through.
     """
     if isinstance(value, numpy.ndarray):
+        #if isinstance(value[0], tuple):
+        #    if all(x == value[0] for x in value[1:]):
+        #        return value[0]
+        #    else:
+        #        return value
+        # elif
         if (value == value[0]).all():
             return value[0]
         else:

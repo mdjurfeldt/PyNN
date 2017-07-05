@@ -750,17 +750,6 @@ class AdExp(StandardCellType):
         #    init_val['gsyn_{}'.format(name)] = 0.0
         return init_val
 
-    def translate(self, parameters):
-        sub_ps = {}
-        for name in ("tau_syn", "e_syn"):
-            native_name = self.translations[name]['translated_name']
-            sub_ps[native_name] = parameters[name] ##parameters.pop(name)
-            ##parameters[name] = None
-        ps = super(AdExp, self).translate(parameters)
-        for name, value in sub_ps.items():
-            ps[name] = value
-        return ps
-
 
 class RoessertEtAl(StandardCellType):
     """
@@ -832,15 +821,3 @@ class RoessertEtAl(StandardCellType):
         #    init_val['gsyn_{}'.format(name)] = 0.0
         return init_val
 
-    def translate(self, parameters):
-        sub_ps = {}
-        for name in ("tau_syn_fast_rise", "tau_syn_fast_decay",
-                     "tau_syn_slow_rise", "tau_syn_slow_decay",
-                     "e_syn_fast", "e_syn_slow",
-                     "ratio_slow_fast", "mg_conc", "tau_corr"):
-            native_name = self.translations[name]['translated_name']
-            sub_ps[native_name] = parameters[name]
-        ps = super(RoessertEtAl, self).translate(parameters)
-        for name, value in sub_ps.items():
-            ps[name] = value
-        return ps

@@ -11,7 +11,7 @@ import numpy
 import nest
 import logging
 from pyNN import common, errors
-from pyNN.parameters import Sequence, ParameterSpace, simplify
+from pyNN.parameters import Sequence, ParameterSpace, simplify, LazyArray
 from pyNN.random import RandomDistribution
 from pyNN.standardmodels import StandardCellType
 from . import simulator
@@ -46,10 +46,17 @@ class PopulationMixin(object):
         if "spike_times" in names:
             parameter_dict = {"spike_times": [Sequence(value) for value in nest.GetStatus(ids, names)]}
         else:
-            parameter_array = numpy.array(nest.GetStatus(ids, names))
-            parameter_dict = dict((name, simplify(parameter_array[:, col]))
-                                  for col, name in enumerate(names))
-        return ParameterSpace(parameter_dict, shape=(self.local_size,))
+            parameter_dict = {}
+            for name in names:  # one name at a time, since some parameter values may be tuples
+                val = numpy.array(nest.GetStatus(ids, name))
+                if isinstance(val, tuple):
+                    val = LazyArray(Sequence(val), shape=(self.local_size,), dtype=Sequence)
+                elif isinstance(val, numpy.ndarray) and (isinstance(val[0], tuple) or len(val.shape) == 2):
+                    val = numpy.array([Sequence(v) for v in val])
+                    val = LazyArray(simplify(val), shape=(self.local_size,), dtype=Sequence)
+                parameter_dict[name] = val
+        ps = ParameterSpace(parameter_dict, shape=(self.local_size,))
+        return ps
 
 
 class Assembly(common.Assembly):

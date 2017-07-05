@@ -262,21 +262,10 @@ class BasePopulation(object):
         logger.debug("%s.sample(%s)", self.label, n)
         return self._get_view(indices)
 
-    def get(self, parameter_names, gather=False, simplify=True):
+    def _get_parameter_dict(self, parameter_names, gather=False, simplify=True):
         """
-        Get the values of the given parameters for every local cell in the
-        population, or, if gather=True, for all cells in the population.
-        
-        Values will be expressed in the standard PyNN units (i.e. millivolts,
-        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
+
         """
-        # if all the cells have the same value for a parameter, should
-        # we return just the number, rather than an array?
-        if isinstance(parameter_names, basestring):
-            parameter_names = (parameter_names,)
-            return_list = False
-        else:
-            return_list = True
         if isinstance(self.celltype, standardmodels.StandardCellType):
             if any(name in self.celltype.computed_parameters() for name in parameter_names):
                 native_names = self.celltype.get_native_names()  # need all parameters in order to calculate values
@@ -305,6 +294,24 @@ class BasePopulation(object):
                         idx = numpy.argsort(indices)
                         values = numpy.array(values)[idx]
                 parameters[name] = values
+        return parameters
+
+    def get(self, parameter_names, gather=False, simplify=True):
+        """
+        Get the values of the given parameters for every local cell in the
+        population, or, if gather=True, for all cells in the population.
+        
+        Values will be expressed in the standard PyNN units (i.e. millivolts,
+        nanoamps, milliseconds, microsiemens, nanofarads, event per second).
+        """
+        if isinstance(parameter_names, basestring):
+            parameter_names = (parameter_names,)
+            return_list = False
+        else:
+            return_list = True
+
+        parameters = self._get_parameter_dict(parameter_names, gather=gather, simplify=simplify)
+
         try:
             values = [parameters[name] for name in parameter_names]
         except KeyError as err:
@@ -315,6 +322,7 @@ class BasePopulation(object):
         else:
             assert len(parameter_names) == 1
             return values[0]
+
 
     def set(self, **parameters):
         """

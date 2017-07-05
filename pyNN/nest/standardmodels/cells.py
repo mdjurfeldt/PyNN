@@ -8,7 +8,7 @@ Standard cells for nest
 
 from collections import defaultdict
 from pyNN.standardmodels import cells, build_translations
-from pyNN.parameters import Sequence
+from pyNN.parameters import Sequence, LazyArray, ParameterSpace
 from .. import simulator
 
 
@@ -219,7 +219,7 @@ class SpikeSourcePoisson(cells.SpikeSourcePoisson):
 
 
 def unsupported(valid_value):
-    def error_if_invalid(parameter_name, **parameters):
+    def error_if_invalid(cell_type, parameter_name, **parameters):
         if parameters[parameter_name].base_value != valid_value:
             raise NotImplementedError("The `{}` parameter is not supported in NEST".format(parameter_name))
         return valid_value
@@ -294,7 +294,7 @@ def adjust_spike_times_forward(parameter_name, spike_times):
     return spike_times - simulator.state.min_delay
 
 
-def adjust_spike_times_backward(parameter_name, spike_times):
+def adjust_spike_times_backward(cell_type, parameter_name, spike_times):
     """
     Since this cell type requires parrot neurons, we have to adjust the
     spike times to account for the transmission delay from device to
@@ -387,35 +387,31 @@ class GIF_cond_exp(cells.GIF_cond_exp):
     standard_receptor_type = True
 
 
-def translate_multisyn(name, **parameters):
+def translate_multisyn(cell_type, name, **parameters):
     """
     PyNN stores multisynapse parameters in a dict structure,
     whereas NEST uses lists.
     """
-    if 'tau_syn' in parameters and 'e_syn' in parameters:
-        receptor_types = list(sorted(parameters["tau_syn"].keys()))
-    elif 'tau_syn_fast_rise' in parameters:  # RoessertEtAl neuron
-        receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys()))
-    else:
-        raise Exception("Cannot translate these parameters")
-    return [parameters[name][rt] for rt in receptor_types]
+    ops = [parameters[name][rt].operations for rt in cell_type.receptor_types]
+    for op in ops[1:]:
+        assert op == ops[0]
+    val = Sequence([parameters[name][rt].base_value for rt in cell_type.receptor_types])  # todo: fix so this works for non-scalar parameter values, e.g. arrays
+    lval = LazyArray(val, dtype=Sequence)  # todo: handle shape
+    lval.operations = ops[0]
+    return lval
 
 
-def reverse_translate_multisyn(name, **parameters):
+def reverse_translate_multisyn(cell_type, name, **parameters):
     """
     PyNN stores multisynapse parameters in a dict structure,
     whereas NEST uses lists.
     """
-    if 'tau_syn' in parameters and 'E_rev' in parameters:
-        receptor_types = list(sorted(parameters["tau_syn"].keys()))
-    elif 'tau_r_fast' in parameters:  # RoessertEtAl neuron
-        receptor_types = list(sorted(parameters["tau_r_fast"].keys()))
-    else:
-        raise Exception("Cannot translate these parameters")
-    translated_parameters = defaultdict({})
-    for rt, value in zip(receptor_types, parameters[name]):
-        translated_parameters[name][rt] = value
-    return translated_parameters
+    translated_values = {}
+    value = parameters[name].evaluate(simplify=True)
+    assert isinstance(value, Sequence)
+    for rt, val in zip(cell_type.receptor_types, value.value):
+        translated_values[rt] = val
+    return translated_values
 
 
 class RoessertEtAl(cells.RoessertEtAl):
