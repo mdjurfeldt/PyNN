@@ -52,18 +52,10 @@ neuron_params = {
     "delta_v": 0.5,  # mV
     "v_t_star": -48.0,
     "lambda0": 1.0,  # 1/s
-    "tau_eta1": 10.0,  # ms
-    "tau_eta2": 50.0,
-    "tau_eta3": 250.0,
-    "a_eta1": 0.2,
-    "a_eta2": 0.05,
-    "a_eta3": 0.025,
-    "tau_gamma1": 5.0,
-    "tau_gamma2": 200.0,
-    "tau_gamma3": 250.0,
-    "a_gamma1": 15.0,
-    "a_gamma2": 3.0,
-    "a_gamma3": 1.0,
+    "tau_eta": Sequence([10.0, 50.0, 250.0]),
+    "a_eta": Sequence([0.2, 0.05, 0.025]),
+    "tau_gamma": Sequence([5.0, 200.0, 250.0]),
+    "a_gamma": Sequence([15.0, 3.0, 1.0]),
     "g_max": 1.0,  # uS
     "i_offset": 0.0,  # nA
     "tau_syn_fast_rise": {

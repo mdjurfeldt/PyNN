@@ -429,18 +429,10 @@ class GIF_cond_exp(StandardCellType):
         'delta_v':      0.5,  # Threshold sharpness in mV.
         'v_t_star':   -48.0,  # Threshold baseline in mV.
         'lambda0':      1.0,  # Firing intensity at threshold in Hz.
-        'tau_eta1':     1.0,  # }
-        'tau_eta2':    10.0,  # } Time constants for spike-triggered current in ms.
-        'tau_eta3':   100.0,  # }
-        'tau_gamma1':   1.0,  # }
-        'tau_gamma2':  10.0,  # } Time constants for spike-frequency adaptation in ms.
-        'tau_gamma3': 100.0,  # }
-        'a_eta1':       1.0,  # }
-        'a_eta2':       1.0,  # } Post-spike increments for spike-triggered current in nA
-        'a_eta3':       1.0,  # }
-        'a_gamma1':     1.0,  # }
-        'a_gamma2':     1.0,  # } Post-spike increments for moving threshold in mV
-        'a_gamma3':     1.0,  # }
+        'tau_eta':    Sequence([1.0, 10.0, 100.0]),  # Time constants for spike-triggered current in ms.
+        'tau_gamma':  Sequence([1.0, 10.0, 100.0]),  # Time constants for spike-frequency adaptation in ms.
+        'a_eta':      Sequence([1.0, 1.0, 1.0]),     # Post-spike increments for spike-triggered current in nA
+        'a_gamma':    Sequence([1.0, 1.0, 1.0])      # Post-spike increments for moving threshold in mV
     }
 
     recordable = ['spikes', 'v', 'gsyn_exc', 'gsyn_inh', 'i_eta', 'v_t']
@@ -627,18 +619,10 @@ class RoessertEtAl(StandardCellType):
         'delta_v': 0.5,  # Threshold sharpness in mV.
         'v_t_star': -48.0,  # Threshold baseline in mV.
         'lambda0': 1.0,  # Firing intensity at threshold in Hz.
-        'tau_eta1': 1.0,  # }
-        'tau_eta2': 10.0,  # } Time constants for spike-triggered current in ms.
-        'tau_eta3': 100.0,  # }
-        'tau_gamma1': 1.0,  # }
-        'tau_gamma2': 10.0,  # } Time constants for spike-frequency adaptation in ms.
-        'tau_gamma3': 100.0,  # }
-        'a_eta1': 1.0,  # }
-        'a_eta2': 1.0,  # } Post-spike increments for spike-triggered current in nA
-        'a_eta3': 1.0,  # }
-        'a_gamma1': 1.0,  # }
-        'a_gamma2': 1.0,  # } Post-spike increments for moving threshold in mV
-        'a_gamma3': 1.0,  # }
+        'tau_eta': Sequence([1.0, 10.0, 100.0]),  # Time constants for spike-triggered current in ms.
+        'tau_gamma': Sequence([1.0, 10.0, 100.0]),  # Time constants for spike-frequency adaptation in ms.
+        'a_eta': Sequence([1.0, 1.0, 1.0]),  # Post-spike increments for spike-triggered current in nA
+        'a_gamma': Sequence([1.0, 1.0, 1.0]),  # Post-spike increments for moving threshold in mV
         'e_syn_fast': {},  # synaptic reversal potentials in mV.
         'e_syn_slow': {},  # synaptic reversal potentials in mV.
         'tau_syn_fast_rise': {},   # time constant(s) of the synaptic conductance in ms.

@@ -20,6 +20,7 @@ PLOS Comput Biol 11 (6): e1004275. doi:10.1371/journal.pcbi.1004275.
 import matplotlib
 matplotlib.use('Agg')
 from pyNN.utility import get_simulator, init_logging, normalized_filename
+from pyNN.parameters import Sequence
 
 
 # === Configure the simulator ================================================
@@ -77,14 +78,17 @@ parameters = {
         'tau_gamma1':   1.0,  # }
         'tau_gamma2':  10.0,  # } Time constants for spike-frequency adaptation in ms.
         'tau_gamma3': 100.0,  # }
+
         # the following parameters have different values for each neuron
-        'delta_v':  [1e-6, 1e-6, 0.5, 0.5],  # Threshold sharpness in mV.
-        'a_eta1':   [0.1, 0.0, 0.0, 0.0],  # }
-        'a_eta2':   [0.1, 0.0, 0.0, 0.0],  # } Post-spike increments for spike-triggered current in nA
-        'a_eta3':   [0.1, 0.0, 0.0, 0.0],  # }
-        'a_gamma1': [0.0, 5.0, 0.0, 0.0],  # }
-        'a_gamma2': [0.0, 5.0, 0.0, 0.0],  # } Post-spike increments for spike-frequency adaptation in mV
-        'a_gamma3': [0.0, 5.0, 0.0, 0.0],  # }
+        'delta_v':  [1e-6, 1e-6, 0.5, 0.5],     # Threshold sharpness in mV.
+        'a_eta':   [Sequence([0.1, 0.1, 0.1]),  # Post-spike increments for spike-triggered current in nA
+                    Sequence([0.0, 0.0, 0.0]),
+                    Sequence([0.0, 0.0, 0.0]),
+                    Sequence([0.0, 0.0, 0.0])],
+        'a_gamma': [Sequence([0.0, 0.0, 0.0]),  # Post-spike increments for spike-frequency adaptation in mV
+                    Sequence([5.0, 5.0, 5.0]),
+                    Sequence([0.0, 0.0, 0.0]),
+                    Sequence([0.0, 0.0, 0.0])]
     },
     'stimulus': {
         'start': 20.0,

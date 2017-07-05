@@ -80,14 +80,7 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
         for name, val in cell_parameters.items():
             if isinstance(val, Sequence):
                 cell_parameters[name] = val.value
-        # The following is a temporary hack to get the gif_cond_exp and rossert_et_al models working.
-        # Longer-term, an extension to lazyarray would be the best approach
-        if 'tau_sfa1' in cell_parameters:
-            cell_parameters['tau_sfa'] = (cell_parameters.pop('tau_sfa1'), cell_parameters.pop('tau_sfa2'), cell_parameters.pop('tau_sfa3'))
-            cell_parameters['q_sfa'] = (cell_parameters.pop('q_sfa1'), cell_parameters.pop('q_sfa2'), cell_parameters.pop('q_sfa3'))
-            cell_parameters['tau_stc'] = (cell_parameters.pop('tau_stc1'), cell_parameters.pop('tau_stc2'), cell_parameters.pop('tau_stc3'))
-            cell_parameters['q_stc'] = (cell_parameters.pop('q_stc1'), cell_parameters.pop('q_stc2'), cell_parameters.pop('q_stc3'))
-        # the following is a similar hack for multi-synapse models
+        # The following is a temporary hack for multi-synapse models
         if 'tau_syn' in cell_parameters and 'E_rev' in cell_parameters:
             receptor_types = list(sorted(cell_parameters["tau_syn"].keys()))
             cell_parameters['tau_syn'] = [cell_parameters['tau_syn'][rt] for rt in receptor_types]
@@ -109,12 +102,7 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
         # Might be best to set homogeneous parameters on creation,
         # then inhomogeneous ones using SetStatus. Need some timings.
         for D in cell_parameters:
-            if 'tau_sfa1' in D:  # temporary hack
-                D['tau_sfa'] = (D.pop('tau_sfa1'), D.pop('tau_sfa2'), D.pop('tau_sfa3'))
-                D['q_sfa'] = (D.pop('q_sfa1'), D.pop('q_sfa2'), D.pop('q_sfa3'))
-                D['tau_stc'] = (D.pop('tau_stc1'), D.pop('tau_stc2'), D.pop('tau_stc3'))
-                D['q_stc'] = (D.pop('q_stc1'), D.pop('q_stc2'), D.pop('q_stc3'))
-            if 'tau_syn' in D and 'E_rev' in D:
+            if 'tau_syn' in D and 'E_rev' in D:  # temporary hack for multisynapse models
                 receptor_types = list(sorted(D["tau_syn"].keys()))
                 D['tau_syn'] = [D['tau_syn'][rt] for rt in receptor_types]
                 D['E_rev'] = [D['E_rev'][rt] for rt in receptor_types]
