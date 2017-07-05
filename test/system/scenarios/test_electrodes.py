@@ -1,6 +1,6 @@
 
 
-from nose.tools import assert_equal, assert_true
+from nose.tools import assert_equal, assert_true, assert_false
 from numpy.testing import assert_array_equal
 import quantities as pq
 import numpy
@@ -116,7 +116,7 @@ def issue437(sim):
     If fails, run the test again to confirm. Passes 9/10 times on first attempt.
     """
     if not have_scipy:
-        raise SkipTest 
+        raise SkipTest
 
     v_rest = -60.0  # for this test keep v_rest < v_reset
     sim.setup(timestep=0.1, min_delay=0.1)
@@ -288,6 +288,86 @@ def issue451(sim):
     assert_true (all( (val.item()-v_rest)<1e-9 for val in v[:, 0]))
 
 
+@register()
+def issue483(sim):
+    """
+    Test to ensure that length of recorded voltage vector is as expected
+    (checks for the specific scenario that failed earlier)
+    """
+    dt = 0.1
+    sim.setup(timestep=dt, min_delay=dt)
+    p = sim.Population(1, sim.IF_curr_exp())
+    c = sim.DCSource(amplitude=0.5)
+    c.inject_into(p)
+    p.record('v')
+
+    simtime = 200.0
+    sim.run(100.0)
+    sim.run(100.0)
+
+    v = p.get_data().segments[0].filter(name="v")[0]
+
+    # check that the length of vm vector is as expected theoretically
+    assert (len(v) == (int(simtime/dt) + 1))
+
+
+@register()
+def issue487(sim):
+    """
+    Test to ensure that DCSource and StepCurrentSource work properly
+    for repeated runs. Problem existed under pyNN.neuron.
+    Following sub-tests performed:
+    1) DCSource active across two runs
+    2) StepCurrentSource active across two runs
+    3) DCSource active only during second run (earlier resulted in no current input)
+    4) StepCurrentSource active only during second run (earlier resulted in current initiation at end of first run)
+    """
+    dt = 0.1
+    sim.setup(timestep=dt, min_delay=dt)
+
+    v_rest = -60.0
+    cells = sim.Population(4, sim.IF_curr_exp(v_thresh=-55.0, tau_refrac=5.0, v_rest=v_rest))
+    cells.initialize(v=v_rest)
+    cells.record('v')
+
+    dcsource = sim.DCSource(amplitude=0.15, start=25.0, stop=115.0)
+    cells[0].inject(dcsource)
+
+    step = sim.StepCurrentSource(times=[25.0, 75.0, 115.0], amplitudes=[0.05, 0.10, 0.20])
+    cells[1].inject(step)
+
+    dcsource_2 = sim.DCSource(amplitude=0.15, start=115.0, stop=145.0)
+    cells[2].inject(dcsource_2)
+
+    step_2 = sim.StepCurrentSource(times=[125.0, 175.0, 215.0], amplitudes=[0.05, 0.10, 0.20])
+    cells[3].inject(step_2)
+
+    simtime = 100.0
+    sim.run(simtime)
+    sim.run(simtime)
+
+    v = cells.get_data().segments[0].filter(name="v")[0]
+    sim.end()
+    v_dc = v[:, 0]
+    v_step = v[:, 1]
+    v_dc_2 = v[:, 2]
+    v_step_2 = v[:, 3]
+
+    # check that membrane potential does not fall after end of first run
+    # Test 1
+    assert_true (v_dc[int(simtime/dt)] < v_dc[int(simtime/dt)+1])
+    # Test 2
+    assert_true (v_step[int(simtime/dt)] < v_step[int(simtime/dt)+1])
+    # check that membrane potential of cell undergoes a change
+    # Test 3
+    v_dc_2_arr = numpy.squeeze(numpy.array(v_dc_2))
+    assert_false (numpy.isclose(v_dc_2_arr, v_rest).all())
+    # check that membrane potential of cell undergoes no change till start of current injection
+    # Test 4
+    v_step_2_arr = numpy.squeeze(numpy.array(v_step_2))
+    assert_true (numpy.isclose(v_step_2_arr[0:int(step_2.times[0]/dt)], v_rest).all())
+
+
 if __name__ == '__main__':
     from pyNN.utility import get_simulator
     sim, args = get_simulator()
@@ -299,3 +379,5 @@ if __name__ == '__main__':
     issue442(sim)
     issue445(sim)
     issue451(sim)
+    issue483(sim)
+    issue487(sim)
