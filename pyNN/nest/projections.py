@@ -335,8 +335,9 @@ class Projection(common.Projection):
             values = numpy.array(values)
             values[:, names.index('postsynaptic_index')] -= self.post.first_id
             values = values.tolist()
-        for i in xrange(len(values)):
-            values[i] = tuple(values[i])
+        if not isinstance(values[0], tuple):
+            for i in range(len(values)):
+                values[i] = tuple(values[i])
         return values
 
     def _get_attributes_as_arrays(self, names, multiple_synapses='sum'):

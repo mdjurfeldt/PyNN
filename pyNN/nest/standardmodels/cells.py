@@ -395,9 +395,18 @@ def translate_multisyn(cell_type, name, **parameters):
     ops = [parameters[name][rt].operations for rt in cell_type.receptor_types]
     for op in ops[1:]:
         assert op == ops[0]
-    val = Sequence([parameters[name][rt].base_value for rt in cell_type.receptor_types])  # todo: fix so this works for non-scalar parameter values, e.g. arrays
+    if all(parameters[name][rt].is_homogeneous for rt in cell_type.receptor_types):
+        val = Sequence([parameters[name][rt].base_value for rt in cell_type.receptor_types])
+    else:  # the following will fail for a mixture of homogeneous and inhomogeneous parameters  - to fix
+        sizes = [parameters[name][rt].base_value.shape[0] for rt in cell_type.receptor_types]
+        assert all(size == sizes[0] for size in sizes)
+        size = sizes[0]
+        val = []
+        for i in range(size):
+            val.append(Sequence([parameters[name][rt].base_value[i] for rt in cell_type.receptor_types]))
     lval = LazyArray(val, dtype=Sequence)  # todo: handle shape
-    lval.operations = ops[0]
+    if ops:
+        lval.operations = ops[0]
     return lval
 
 

@@ -86,16 +86,17 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
             cell_parameters.update(extra_parameters)
         for name, val in cell_parameters.items():
             if isinstance(val, Sequence):
-                cell_parameters[name] = val.value
+                cell_parameters[name] = val.value.tolist()
     else:
         parameter_space.evaluate(mask=mask_local)
         cell_parameters = list(parameter_space)  # may not be the most efficient way.
         # Might be best to set homogeneous parameters on creation,
         # then inhomogeneous ones using SetStatus. Need some timings.
+        print("####", cell_parameters)
         for D in cell_parameters:
             for name, val in D.items():
                 if isinstance(val, Sequence):
-                    D[name] = val.value
+                    D[name] = val.value.tolist()
             if extra_parameters:
                 D.update(extra_parameters)
     return cell_parameters

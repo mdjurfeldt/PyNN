@@ -786,12 +786,18 @@ class RoessertEtAl(StandardCellType):
         """
         `parameters` should be a mapping object, e.g. a dict
         """
-        self.receptor_types = list(sorted(parameters["tau_syn_fast_rise"].keys()))
         self.parameter_space = ParameterSpace(self.default_parameters,
                                               self.get_schema(),
                                               shape=None)
         if parameters:
             self.parameter_space.update(**parameters)
+
+    @property
+    def receptor_types(self):
+        if "tau_syn_fast_rise" in self.parameter_space.keys():
+            return list(sorted(self.parameter_space["tau_syn_fast_rise"].keys()))
+        else:
+            return []
 
     @property
     def recordable(self):
