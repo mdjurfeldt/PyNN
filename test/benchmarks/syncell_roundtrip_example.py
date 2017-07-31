@@ -86,13 +86,13 @@ network.projections = [connections_exc, connections_inh]
 t2 = time()
 print("Time to build network: {} s".format(t2 - t1))
 
-network.save_to_syncell_file("test.h5")
+network.save_to_syncell_files("test_neurons.h5", "test_synapses.h5")
 
 t3 = time()
 print("Time to save network to file: {} s".format(t3 - t2))
 
 
-network2 = Network.from_syncell_file("test.h5")
+network2 = Network.from_syncell_files("test_neurons.h5", "test_synapses.h5")
 
 assert network2.populations[0].size == neurons.size
 assert network2.projections[0].size() == connections_exc.size(), "{} != {}".format(network2.projections[0].size(), connections_exc.size())
@@ -101,15 +101,25 @@ assert network2.projections[1].size() == connections_inh.size(), "{} != {}".form
 t4 = time()
 print("Time to load network from file: {} s".format(t4 - t3))
 
-network2.save_to_syncell_file("test2.h5")
+network2.save_to_syncell_files("test2_neurons.h5", "test2_synapses.h5")
 
 t5 = time()
 print("Time to save network to file again: {} s".format(t5 - t4))
 
-# check the two files are identical
-f1 = h5py.File("test.h5", "r")
-f2 = h5py.File("test2.h5", "r")
-for table_name in ("neurons", "presyn", "postsyn"):
+# check the two pairs of files are identical
+f1 = h5py.File("test_neurons.h5", "r")
+f2 = h5py.File("test2_neurons.h5", "r")
+for table_name in ("neurons",):
+    print("\n======== {} ========\n".format(table_name))
+    for name in f1[table_name]["default"].keys():
+        x1 = f1[table_name]["default"][name].value
+        x2 = f2[table_name]["default"][name].value
+        if not np.all(np.abs(x1 - x2) < 1e-9):
+            errmsg = "\n{}:\n{}\nnot equal to\n{}\n".format(name, x1, x2)
+            print(errmsg)
+f1 = h5py.File("test_synapses.h5", "r")
+f2 = h5py.File("test2_synapses.h5", "r")
+for table_name in ("presyn", "postreceptors"):
     print("\n======== {} ========\n".format(table_name))
     for name in f1[table_name]["default"].keys():
         x1 = f1[table_name]["default"][name].value

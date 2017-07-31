@@ -23,32 +23,23 @@ import pyNN.nest as sim
 class Network(object):
 
     @classmethod
-    def from_syncell_file(cls, path):
-        f = h5py.File(path, "r")
-        
-        neuron_params = f['neurons']['default']
-        presyn_params = f['presyn']['default']
-        postsyn_params = f['postsyn']['default']
+    def from_syncell_files(cls, neuron_file_path, synapse_file_path):
+        fn = h5py.File(neuron_file_path, "r")
+        fs = h5py.File(synapse_file_path, "r")
+
+        neuron_params = fn['neurons']['default']
+        presyn_params = fs['presyn']['default']
+        postsyn_params = fs['postreceptors']['default']
         gids = neuron_params['gid']
         # todo: figure out what hypamp, rho_stim and rho_threshold parameters are for
 
-        receptor_ids = np.unique(postsyn_params['receptor_ids'])
-        receptor_parameters = dict((key, defaultdict(list)) for key in postsyn_params.keys())
-
-        def get_receptor_parameters(gid, receptor_parameters):
-            """
-            
- 
-            """
-            postsyn_mask = presyn_params['post_gid'].value == gid
-            for receptor_id in receptor_ids:
-                first_index = np.where(postsyn_params['receptor_ids'][postsyn_mask] == receptor_id)[0][0]
-                for name in receptor_parameters:
-                    receptor_parameters[name][str(receptor_id)].append(postsyn_params[name][postsyn_mask][first_index])
-
-        for gid in gids:
-            get_receptor_parameters(gid, receptor_parameters)
-        ##pprint(receptor_parameters)
+        receptor_ids = np.unique(presyn_params['receptor_ids'])
+        receptor_parameters = {}
+        for name in postsyn_params.keys():
+            if name not in ('gid', 'n_receptors'):
+                receptor_parameters[name] = {}
+                for receptor_id in receptor_ids:
+                    receptor_parameters[name][str(receptor_id)] = postsyn_params[name][:, receptor_id - 1]
 
         # === Create neurons =====
         neurons = sim.Population(
@@ -82,8 +73,9 @@ class Network(object):
             label="neurons")
         neurons.annotate(first_gid=gids[0])
 
-        f.close()
-    
+        fn.close()
+        fs.close()
+
         # === Create connectors =====
 
         connections = []
@@ -91,14 +83,16 @@ class Network(object):
         for receptor_id in receptor_ids:
             connections.append(
                 sim.Projection(neurons, neurons,
-                               SynCellFileConnector(path, offset=offset),
+                               SynCellFileConnector(synapse_file_path, offset=offset),
                                sim.TsodyksMarkramSynapseEM(),
                                receptor_type=str(receptor_id)))
             offset += connections[-1].size()
 
+
         obj = cls()
         obj.populations = [neurons]
         obj.projections = connections
+
         return obj
 
     @property
@@ -115,12 +109,14 @@ class Network(object):
     def connection_count(self):
         return sum(prj.size(gather=True) for prj in self.projections)
 
-    def save_to_syncell_file(self, path):
+    def save_to_syncell_files(self, neuron_file_path, synapse_file_path):
         # only saves the first population and projection for now
-        f = h5py.File(path, "w")
-        neuron_params = f.create_group("neurons/default")  # use population.label instead of "default"?
-        presyn_params =  f.create_group("presyn/default")
-        postsyn_params =  f.create_group("postsyn/default")
+        fn = h5py.File(neuron_file_path, "w")
+        fs = h5py.File(synapse_file_path, "w")
+
+        neuron_params = fn.create_group("neurons/default")  # use population.label instead of "default"?
+        presyn_params =  fs.create_group("presyn/default")
+        postsyn_params =  fs.create_group("postreceptors/default")
 
         # Write to "neurons" group
         assert len(self.populations) == 1, "Can't yet handle multiple populations"
@@ -154,17 +150,14 @@ class Network(object):
 
         presyn_params.create_dataset("pre_gid", (self.connection_count,), dtype='i4')
         presyn_params.create_dataset("post_gid", (self.connection_count,), dtype='i4')
+        presyn_params.create_dataset("receptor_ids", (self.connection_count,), dtype='i4')
         for name in presyn_attribute_names:
             presyn_params.create_dataset(name, (self.connection_count,), dtype=float)
 
-        postsyn_params.create_dataset("receptor_ids", (self.connection_count,), dtype='i4')
+        n_post = self.projections[0].post.size
+        n_receptors = len(self.projections)
         for name in psr_names:
-            postsyn_params.create_dataset(name, (self.connection_count,), dtype=float)
-
-        # presyn expected tables
-        # - 'U', 'delay', 'poisson_freq', 'post_gid', 'pre_gid', 'tau_fac', 'tau_rec', 'w_corr', 'weight'
-        # postsyn expected tables
-        #  - as in psr_names, above, 'plus receptor_ids'
+            postsyn_params.create_dataset(name, (n_post, n_receptors), dtype=float)
 
         offset = 0
         for projection in self.projections:
@@ -172,6 +165,9 @@ class Network(object):
             assert projection.post == self.populations[0]
             projection_size = projection.size(gather=True)
 
+            receptor_index = self.get_receptor_index(projection.receptor_type)
+
+            presyn_params["receptor_ids"][offset:projection_size + offset] = receptor_index + 1  # receptor_ids count from 1
             for name in presyn_attribute_names:
                 values = np.array(projection.get(name, format='list', gather=True, with_address=False))
                 # todo: translate names and units where needed
@@ -186,14 +182,16 @@ class Network(object):
             presyn_params["pre_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, presyn_idx)
             presyn_params["post_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, postsyn_idx)
 
-            receptor_index = self.get_receptor_index(projection.receptor_type)
-
-            postsyn_params["receptor_ids"][offset:projection_size + offset] = receptor_index + 1  # receptor_ids count from 1
             for name in psr_names:
                 values = np.array([x.value[receptor_index] for x in translated_parameters[name]])
-                postsyn_params[name][offset:projection_size + offset] = values[postsyn_idx]
+                postsyn_params[name][:, receptor_index] = values
             offset += projection_size
-        f.close()
+
+        postsyn_params.create_dataset("n_receptors", (n_post,), dtype='i4')  # todo: populate this dataset
+        postsyn_params.create_dataset("gid", data=index_to_gid(projection.post, postsyn_idx), dtype='i4')
+
+        fn.close()
+        fs.close()
 
 
 
@@ -223,17 +221,15 @@ class SynCellFileConnector(Connector):
     def __init__(self, path, offset=0, safe=True, callback=None):
         f = h5py.File(path, "r")
         
-        self.neuron_params = f['neurons']['default']
         self.presyn_params = f['presyn']['default']
-        self.postsyn_params = f['postsyn']['default']
-        self.gids = self.neuron_params['gid']
+        self.postsyn_params = f['postreceptors']['default']
 
     def connect(self, projection):
         for post_index in projection.post._mask_local.nonzero()[0]:
             post_gid = index_to_gid(projection.post, post_index)
             # could process file by chunks, if memory becomes a problem for these masks
             mask1 = self.presyn_params["post_gid"].value == post_gid
-            mask2 = self.postsyn_params["receptor_ids"].value == int(projection.receptor_type)
+            mask2 = self.presyn_params["receptor_ids"].value == int(projection.receptor_type)
             mask = mask1 * mask2
 
             pre_indices = gid_to_index(projection.pre, self.presyn_params["pre_gid"][mask])
