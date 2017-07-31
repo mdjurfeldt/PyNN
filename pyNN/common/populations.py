@@ -769,6 +769,7 @@ class Population(BasePopulation):
             "size_local": len(self.local_cells),
             "first_id": self.first_id,
             "last_id": self.last_id,
+            "annotations": self.annotations
         }
         context.update(self.annotations)
         if len(self.local_cells) > 0:

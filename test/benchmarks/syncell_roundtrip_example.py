@@ -1,5 +1,6 @@
 
 from time import time
+from itertools import chain
 import h5py
 import numpy as np
 from pyNN.parameters import Sequence
@@ -28,6 +29,9 @@ neuron_params = {
     "a_gamma": Sequence([15.0, 3.0, 1.0]),
     "g_max": 1.0,  # uS
     "i_offset": 0.0,  # nA
+    "i_rho_thresh": 0.0123,
+    "f_rho_stim": 5.0,  # %,
+    "i_hyp": 0.0789,
     "tau_syn_fast_rise": {
         "exc": 0.2,
         "inh": 0.2,
@@ -71,17 +75,34 @@ synapse_parameters = {
     "U":  RandomDistribution("normal", (0.8, 0.01), rng=rng),
 }
 
-neurons = sim.Population(1000, sim.RoessertEtAl(**neuron_params))
+neurons = sim.Population(1000, sim.RoessertEtAl(**neuron_params), label="neurons")
 connections_exc = sim.Projection(neurons, neurons, sim.FixedProbabilityConnector(p_connect=0.05),
                                  sim.TsodyksMarkramSynapseEM(**synapse_parameters),
-                                 receptor_type="exc")
+                                 receptor_type="exc", label="excitatory connections")
 connections_inh = sim.Projection(neurons, neurons, sim.CloneConnector(connections_exc),
                                  sim.TsodyksMarkramSynapseEM(**synapse_parameters),
-                                 receptor_type="inh")
+                                 receptor_type="inh", label="inhibitory connections")
+stim = sim.Population(100, sim.SpikeSourceArray(), label="external stimulation")
+connections_stim = sim.Projection(stim, neurons, sim.FixedProbabilityConnector(p_connect=0.05),
+                                  sim.TsodyksMarkramSynapseEM(**synapse_parameters),
+                                  receptor_type="exc", label="external input connections")
 
 network = Network()
 network.populations = [neurons]
+network.stim_populations = [stim]
 network.projections = [connections_exc, connections_inh]
+network.stim_projections = [connections_stim]
+
+from tabulate import tabulate
+
+for item in chain(network.populations, network.stim_populations):
+    print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
+                        engine='jinja2'))
+for item in chain(network.projections, network.stim_projections):
+    print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
+                        engine='jinja2'))
+    #print(tabulate(item.get(('weight', 'delay'), format='list')))
+
 
 t2 = time()
 print("Time to build network: {} s".format(t2 - t1))
@@ -94,9 +115,21 @@ print("Time to save network to file: {} s".format(t3 - t2))
 
 network2 = Network.from_syncell_files("test_neurons.h5", "test_synapses.h5")
 
+for item in chain(network2.populations, network2.stim_populations):
+    print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
+                        engine='jinja2'))
+for item in chain(network2.projections, network2.stim_projections):
+    print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
+                        engine='jinja2'))
+    #if item.size() > 0:
+    #    print(tabulate(item.get(('weight', 'delay'), format='list')))
+
+
 assert network2.populations[0].size == neurons.size
+assert network2.stim_populations[0].size == stim.size
 assert network2.projections[0].size() == connections_exc.size(), "{} != {}".format(network2.projections[0].size(), connections_exc.size())
 assert network2.projections[1].size() == connections_inh.size(), "{} != {}".format(network2.projections[1].size(), connections_inh.size())
+assert network2.stim_projections[0].size() == connections_stim.size(), "{} != {}".format(network2.stim_projections[0].size(), connections_stim.size())
 
 t4 = time()
 print("Time to load network from file: {} s".format(t4 - t3))
@@ -117,9 +150,11 @@ for table_name in ("neurons",):
         if not np.all(np.abs(x1 - x2) < 1e-9):
             errmsg = "\n{}:\n{}\nnot equal to\n{}\n".format(name, x1, x2)
             print(errmsg)
+f1.close()
+f2.close()
 f1 = h5py.File("test_synapses.h5", "r")
 f2 = h5py.File("test2_synapses.h5", "r")
-for table_name in ("presyn", "postreceptors"):
+for table_name in ("presyn", "postreceptors", "stimulation"):
     print("\n======== {} ========\n".format(table_name))
     for name in f1[table_name]["default"].keys():
         x1 = f1[table_name]["default"][name].value
@@ -127,7 +162,8 @@ for table_name in ("presyn", "postreceptors"):
         if not np.all(np.abs(x1 - x2) < 1e-9):
             errmsg = "\n{}:\n{}\nnot equal to\n{}\n".format(name, x1, x2)
             print(errmsg)
-
+f1.close()
+f2.close()
 
 """
 I think it is fair to say that many (a majority of?) neurophysiologists aren’t interested in sharing data, only wish to share data in the context of a formal collaboration with clear goals and a co-authorship agreement, and/or don’t think there is any point in sharing most data since a given dataset is usually tightly coupled to a particular and precise experimental context.

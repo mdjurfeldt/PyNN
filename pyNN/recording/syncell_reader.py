@@ -3,18 +3,16 @@
 """
 
 
-# todo: add support for rho_stim, rho_threshold and hypamp, since the NEST model changed
 # todo: handle poisson_freq
+# todo: handle pre_ids from other hypercolumns
 # todo: check data types (e.g. i8 vs i4) in saved files
 
-import sys
-from collections import defaultdict
-from pprint import pprint
+from itertools import chain
 import numpy as np
 import h5py
 
 from pyNN.connectors import Connector
-from pyNN.parameters import Sequence, ParameterSpace
+from pyNN.parameters import Sequence
 from pyNN.nest.standardmodels.cells import RoessertEtAl as RoessertEtAl_nest
 import pyNN.nest as sim
 
@@ -30,8 +28,8 @@ class Network(object):
         neuron_params = fn['neurons']['default']
         presyn_params = fs['presyn']['default']
         postsyn_params = fs['postreceptors']['default']
+        stim_params = fs['stimulation']['default']
         gids = neuron_params['gid']
-        # todo: figure out what hypamp, rho_stim and rho_threshold parameters are for
 
         receptor_ids = np.unique(presyn_params['receptor_ids'])
         receptor_parameters = {}
@@ -51,6 +49,9 @@ class Network(object):
                 tau_refrac=neuron_params['t_ref'].value,
                 v_reset=neuron_params['V_reset'].value,
                 i_offset=0,
+                i_hyp=0.001*neuron_params['hypamp'].value,
+                i_rho_thresh=0.001*neuron_params['rho_threshold'].value,
+                f_rho_stim=0.01*stim_params['rho_stim'].value,
                 delta_v=neuron_params['Delta_V'].value,
                 v_t_star=neuron_params['V_T_star'].value,
                 lambda0=neuron_params['lambda_0'].value,
@@ -73,25 +74,41 @@ class Network(object):
             label="neurons")
         neurons.annotate(first_gid=gids[0])
 
+        # === Create external stimulation ====
+        stim_gids = stim_params["stim_gids"]
+        stim = sim.Population(
+            stim_gids.size,
+            sim.SpikeSourceArray(), # ?
+            label="stim"
+        )
+        stim.annotate(first_gid=stim_gids[0])
+
         fn.close()
         fs.close()
 
         # === Create connectors =====
 
         connections = []
-        offset = 0
         for receptor_id in receptor_ids:
             connections.append(
                 sim.Projection(neurons, neurons,
-                               SynCellFileConnector(synapse_file_path, offset=offset),
+                               SynCellFileConnector(synapse_file_path),
                                sim.TsodyksMarkramSynapseEM(),
                                receptor_type=str(receptor_id)))
-            offset += connections[-1].size()
 
+        stim_connections = []
+        for receptor_id in receptor_ids:
+            stim_connections.append(
+                sim.Projection(stim, neurons,
+                               SynCellFileConnector(synapse_file_path),
+                               sim.TsodyksMarkramSynapseEM(),
+                               receptor_type=str(receptor_id)))
 
         obj = cls()
         obj.populations = [neurons]
+        obj.stim_populations = [stim]
         obj.projections = connections
+        obj.stim_projections = stim_connections
 
         return obj
 
@@ -107,7 +124,7 @@ class Network(object):
 
     @property
     def connection_count(self):
-        return sum(prj.size(gather=True) for prj in self.projections)
+        return sum(prj.size(gather=True) for prj in chain(self.projections, self.stim_projections))
 
     def save_to_syncell_files(self, neuron_file_path, synapse_file_path):
         # only saves the first population and projection for now
@@ -117,6 +134,7 @@ class Network(object):
         neuron_params = fn.create_group("neurons/default")  # use population.label instead of "default"?
         presyn_params =  fs.create_group("presyn/default")
         postsyn_params =  fs.create_group("postreceptors/default")
+        stim_params = fs.create_group("stimulation/default")
 
         # Write to "neurons" group
         assert len(self.populations) == 1, "Can't yet handle multiple populations"
@@ -132,17 +150,29 @@ class Network(object):
 
         psr_names = ['tau_d_fast', 'tau_d_slow', 'tau_r_fast', 'tau_r_slow',
                      'E_rev', 'E_rev_B', 'ratio_slow', 'mg', 'tau_corr']
-        excluded_names = psr_names + ['g_max']
+        excluded_names = psr_names + ['g_max', 'rho_stim']
         for name, value in translated_parameters.items():
             if name not in excluded_names:
                 if isinstance(value[0], Sequence):
                     value = np.array([seq.value for seq in value])
                 neuron_params.create_dataset(name, data=value)
-        if 'first_gid' in self.populations[0].annotations:
-            gid_offset = self.populations[0].annotations['first_gid'] - self.populations[0][0]
-        else:
-            gid_offset = 0
-        neuron_params.create_dataset('gid', data=self.populations[0].all_cells.astype(int) + gid_offset)
+
+        def get_gids(population):
+            if 'first_gid' in population.annotations:
+                gid_offset = population.annotations['first_gid'] - population[0]
+            else:
+                gid_offset = 0
+            gids = population.all_cells.astype(int) + gid_offset
+            return gids
+
+        gids = get_gids(self.populations[0])
+        neuron_params.create_dataset('gid', data=gids)
+
+        # Write to "stimulation" group
+        stim_gids = get_gids(self.stim_populations[0])
+        stim_params.create_dataset('gid', data=gids)
+        stim_params.create_dataset('rho_stim', data=translated_parameters['rho_stim'])
+        stim_params.create_dataset('stim_gids', data=stim_gids)
 
         # Write to "presyn" and "postsyn" groups
         presyn_attribute_names = self.projections[0].synapse_type.get_parameter_names()
@@ -160,32 +190,35 @@ class Network(object):
             postsyn_params.create_dataset(name, (n_post, n_receptors), dtype=float)
 
         offset = 0
-        for projection in self.projections:
-            assert projection.pre == self.populations[0]
+        for projection in chain(self.projections, self.stim_projections):
+            assert projection.pre in (self.populations[0], self.stim_populations[0])
             assert projection.post == self.populations[0]
             projection_size = projection.size(gather=True)
 
-            receptor_index = self.get_receptor_index(projection.receptor_type)
+            if projection_size > 0:
 
-            presyn_params["receptor_ids"][offset:projection_size + offset] = receptor_index + 1  # receptor_ids count from 1
-            for name in presyn_attribute_names:
-                values = np.array(projection.get(name, format='list', gather=True, with_address=False))
-                # todo: translate names and units where needed
-                if name == "weight":
-                    values *= 1000
-                presyn_params[name][offset:projection_size + offset] = values
+                receptor_index = self.get_receptor_index(projection.receptor_type)
 
-            presyn_idx, postsyn_idx, _ = np.array(
-                projection.get('weight', format='list', gather=True, with_address=True)).T
-            presyn_idx = presyn_idx.astype(int)
-            postsyn_idx = postsyn_idx.astype(int)
-            presyn_params["pre_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, presyn_idx)
-            presyn_params["post_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, postsyn_idx)
+                presyn_params["receptor_ids"][offset:projection_size + offset] = receptor_index + 1  # receptor_ids count from 1
+                for name in presyn_attribute_names:
+                    values = np.array(projection.get(name, format='list', gather=True, with_address=False))
+                    # todo: translate names and units where needed
+                    if name == "weight":
+                        values *= 1000
+                    presyn_params[name][offset:projection_size + offset] = values
 
-            for name in psr_names:
-                values = np.array([x.value[receptor_index] for x in translated_parameters[name]])
-                postsyn_params[name][:, receptor_index] = values
-            offset += projection_size
+                presyn_idx, postsyn_idx, _ = np.array(
+                    projection.get('weight', format='list', gather=True, with_address=True)).T
+                presyn_idx = presyn_idx.astype(int)
+                postsyn_idx = postsyn_idx.astype(int)
+                presyn_params["pre_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, presyn_idx)
+                presyn_params["post_gid"][offset:projection_size + offset] = index_to_gid(projection.post, postsyn_idx)
+
+                for name in psr_names:
+                    values = np.array([x.value[receptor_index] for x in translated_parameters[name]])
+                    postsyn_params[name][:, receptor_index] = values
+                offset += projection_size
+                #print(projection.label, presyn_idx, postsyn_idx, index_to_gid(projection.pre, postsyn_idx), index_to_gid(projection.post, postsyn_idx), offset)
 
         postsyn_params.create_dataset("n_receptors", (n_post,), dtype='i4')  # todo: populate this dataset
         postsyn_params.create_dataset("gid", data=index_to_gid(projection.post, postsyn_idx), dtype='i4')
@@ -201,7 +234,9 @@ def gid_to_index(population, gid):
         offset = population.annotations["first_gid"]
     else:
         offset = population.first_id
-    return gid - offset
+    candidate_indices = gid - offset
+    in_population = np.logical_and(0 <= candidate_indices, candidate_indices < population.size)
+    return candidate_indices[in_population], in_population
 
 
 def index_to_gid(population, index):
@@ -217,58 +252,35 @@ class SynCellFileConnector(Connector):
     """
 
     """
+    parameter_names = ('path',)
 
-    def __init__(self, path, offset=0, safe=True, callback=None):
+    def __init__(self, path, safe=True, callback=None):
+        self.path = path
         f = h5py.File(path, "r")
         
         self.presyn_params = f['presyn']['default']
         self.postsyn_params = f['postreceptors']['default']
 
     def connect(self, projection):
+        mask2 = self.presyn_params["receptor_ids"].value == int(projection.receptor_type)
         for post_index in projection.post._mask_local.nonzero()[0]:
             post_gid = index_to_gid(projection.post, post_index)
             # could process file by chunks, if memory becomes a problem for these masks
             mask1 = self.presyn_params["post_gid"].value == post_gid
-            mask2 = self.presyn_params["receptor_ids"].value == int(projection.receptor_type)
             mask = mask1 * mask2
-
-            pre_indices = gid_to_index(projection.pre, self.presyn_params["pre_gid"][mask])
-
-            connection_parameters = {}
-            for name in ('U', 'delay', 'tau_fac', 'tau_rec', 'weight'):
-                # todo: handle w_corr
-                if name == "tau_fac":   # hack - todo: proper translation
-                    tname = "tau_facil"
-                else:
-                    tname = name
-                connection_parameters[name] = self.presyn_params[tname][mask]
-            # now translate names and units
-
-            # create connections
-            projection._convergent_connect(pre_indices, post_index, **connection_parameters)
-
-
-class SynCellFileConnector2(SynCellFileConnector):
-    """
-
-    """
-
-    def connect(self, projection):
-        for i, post_gid in enumerate(self.presyn_params["post_gid"]):
-            post_index = gid_to_index(projection.post, post_gid)
-            if (str(self.postsyn_params["receptor_ids"][i]) == projection.receptor_type
-                and projection.post._mask_local[post_index]):
-                pre_index = gid_to_index(projection.pre, self.presyn_params["pre_gid"][i])
-                ##print("i={} post_gid={} post_index={} receptor_type={} pre_index={}".format(i, post_gid, post_index, projection.receptor_type, pre_index))
+            pre_gids = self.presyn_params["pre_gid"][mask]
+            pre_indices, in_population = gid_to_index(projection.pre, pre_gids)
+            if pre_indices.size > 0:
+                #print("****", post_index, post_gid, projection.pre.label, self.presyn_params["pre_gid"][mask], pre_indices)
                 connection_parameters = {}
                 for name in ('U', 'delay', 'tau_fac', 'tau_rec', 'weight'):
                     # todo: handle w_corr
-                    if name == "tau_fac":  # hack - todo: proper translation
+                    if name == "tau_fac":   # hack - todo: proper translation
                         tname = "tau_facil"
                     else:
                         tname = name
-                    connection_parameters[name] = self.presyn_params[tname][i]
+                    connection_parameters[name] = self.presyn_params[tname][mask][in_population]
                 # now translate names and units
 
                 # create connections
-                projection._convergent_connect(np.array([pre_index]), post_index, **connection_parameters)
+                projection._convergent_connect(pre_indices, post_index, **connection_parameters)

@@ -284,7 +284,7 @@ class SpikeSourceInhGamma(cells.SpikeSourceInhGamma):
     }
 
 
-def adjust_spike_times_forward(parameter_name, spike_times):
+def adjust_spike_times_forward(cell_type, parameter_name, spike_times):
     """
     Since this cell type requires parrot neurons, we have to adjust the
     spike times to account for the transmission delay from device to
@@ -442,6 +442,9 @@ class RoessertEtAl(cells.RoessertEtAl):
         ('g_max',              'g_max'),
         ('v_reset',            'V_reset'),
         ('i_offset',           'I_e',         1000.0),  # nA -> pA
+        ('i_hyp',              'hypamp',      1000.0),
+        ('i_rho_thresh',       'rho_threshold', 1000.0),
+        ('f_rho_stim',         'rho_stim',    100.0),  # fraction --> percentage
         ('delta_v',            'Delta_V'),
         ('v_t_star',           'V_T_star'),
         ('lambda0',            'lambda_0'),

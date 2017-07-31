@@ -763,6 +763,9 @@ class RoessertEtAl(StandardCellType):
         'tau_refrac': 4.0,  # Duration of refractory period in ms.
         'v_reset': -65.0,  # Reset potential after a spike in mV.
         'i_offset': 0.0,  # Offset current in nA
+        'i_hyp': 0.0,
+        'i_rho_thresh': 0.0,
+        'f_rho_stim': 0.0,  # Stimulation fraction (0-1)
         'delta_v': 0.5,  # Threshold sharpness in mV.
         'v_t_star': -48.0,  # Threshold baseline in mV.
         'lambda0': 1.0,  # Firing intensity at threshold in Hz.
