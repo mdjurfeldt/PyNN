@@ -15,8 +15,8 @@ sim.setup()
 rng = NumpyRNG(seed=497562396)
 
 neuron_params = {
-    "cm": 0.2,  # nF
-    "tau_m": 0.2/0.01,  # nF/uS
+    "cm": RandomDistribution('normal', (0.2, 0.02)),  # nF
+    "tau_m": RandomDistribution('normal', (20.0, 2.0)),  # nF/uS
     "tau_refrac": 4.0,
     "v_reset": -50.0,
     "v_rest": -65.0,

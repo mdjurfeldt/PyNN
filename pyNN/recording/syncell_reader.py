@@ -2,8 +2,6 @@
 
 """
 
-
-# todo: handle poisson_freq
 # todo: handle pre_ids from other hypercolumns
 # todo: check data types (e.g. i8 vs i4) in saved files
 
