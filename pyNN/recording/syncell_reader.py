@@ -74,7 +74,7 @@ class Network(object):
             label="neurons")
         neurons.annotate(first_gid=gids[0])
 
-        # === Create external stimulation ====
+        # === Create external stimulation =====
         stim_gids = stim_params["stim_gids"]
         stim = sim.Population(
             stim_gids.size,
@@ -83,10 +83,7 @@ class Network(object):
         )
         stim.annotate(first_gid=stim_gids[0])
 
-        fn.close()
-        fs.close()
-
-        # === Create connectors =====
+        # === Create connections =====
 
         connections = []
         for receptor_id in receptor_ids:
@@ -104,11 +101,43 @@ class Network(object):
                                sim.TsodyksMarkramSynapseEM(),
                                receptor_type=str(receptor_id)))
 
+        # === Create populations and connections for spontaneous EPSP minis =====
+
+        mepsp_populations = []
+        mepsp_connections = []
+        firing_rates = presyn_params['poisson_freq']
+        offset = 0
+        for projection in chain(connections, stim_connections):
+            size = projection.size()
+            if size > 0:
+                mepsp_populations.append(
+                    sim.Population(size,
+                                   sim.SpikeSourcePoisson(rate=firing_rates[offset: size + offset]),
+                                   label="Poisson source for {}".format(projection.label)
+                                   )
+                )
+                connection_properties = np.array(projection.get(('weight', 'delay', 'U'), format='list'))
+                connection_properties[:, 0] = np.arange(size)
+                connection_list = [tuple(row) for row in connection_properties]
+                mepsp_connections.append(
+                    sim.Projection(mepsp_populations[-1], projection.post,
+                                   sim.FromListConnector(connection_properties, column_names=('weight', 'delay', 'U')),
+                                   sim.TsodyksMarkramSynapseEM(),
+                                   receptor_type=projection.receptor_type,
+                                   label="spontaneous mEPSP connection for {}".format(projection.label))
+                )
+                offset += size
+
         obj = cls()
         obj.populations = [neurons]
         obj.stim_populations = [stim]
         obj.projections = connections
         obj.stim_projections = stim_connections
+        obj.stim_spontaneous = mepsp_populations
+        obj.spontaneous_projections = mepsp_connections
+
+        fn.close()
+        fs.close()
 
         return obj
 
@@ -181,6 +210,8 @@ class Network(object):
         presyn_params.create_dataset("pre_gid", (self.connection_count,), dtype='i4')
         presyn_params.create_dataset("post_gid", (self.connection_count,), dtype='i4')
         presyn_params.create_dataset("receptor_ids", (self.connection_count,), dtype='i4')
+        presyn_params.create_dataset("poisson_freq", (self.connection_count,), dtype=float)
+
         for name in presyn_attribute_names:
             presyn_params.create_dataset(name, (self.connection_count,), dtype=float)
 
@@ -219,6 +250,11 @@ class Network(object):
                     postsyn_params[name][:, receptor_index] = values
                 offset += projection_size
                 #print(projection.label, presyn_idx, postsyn_idx, index_to_gid(projection.pre, postsyn_idx), index_to_gid(projection.post, postsyn_idx), offset)
+
+        offset = 0
+        for population in self.stim_spontaneous:
+            presyn_params["poisson_freq"][offset:population.size + offset] = population.get("rate", gather=True)
+            offset += population.size
 
         postsyn_params.create_dataset("n_receptors", (n_post,), dtype='i4')  # todo: populate this dataset
         postsyn_params.create_dataset("gid", data=index_to_gid(projection.post, postsyn_idx), dtype='i4')

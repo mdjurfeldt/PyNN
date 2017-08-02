@@ -75,30 +75,50 @@ synapse_parameters = {
     "U":  RandomDistribution("normal", (0.8, 0.01), rng=rng),
 }
 
-neurons = sim.Population(1000, sim.RoessertEtAl(**neuron_params), label="neurons")
+neurons = sim.Population(100, sim.RoessertEtAl(**neuron_params), label="neurons")
 connections_exc = sim.Projection(neurons, neurons, sim.FixedProbabilityConnector(p_connect=0.05),
                                  sim.TsodyksMarkramSynapseEM(**synapse_parameters),
                                  receptor_type="exc", label="excitatory connections")
 connections_inh = sim.Projection(neurons, neurons, sim.CloneConnector(connections_exc),
                                  sim.TsodyksMarkramSynapseEM(**synapse_parameters),
                                  receptor_type="inh", label="inhibitory connections")
-stim = sim.Population(100, sim.SpikeSourceArray(), label="external stimulation")
+stim = sim.Population(10, sim.SpikeSourceArray(), label="external stimulation")
 connections_stim = sim.Projection(stim, neurons, sim.FixedProbabilityConnector(p_connect=0.05),
                                   sim.TsodyksMarkramSynapseEM(**synapse_parameters),
                                   receptor_type="exc", label="external input connections")
+stim_spontaneous = []
+connections_spontaneous = []
+for projection in (connections_exc, connections_inh, connections_stim):
+    stim_spontaneous.append(
+        sim.Population(projection.size(),
+                       sim.SpikeSourcePoisson(rate=10.0),
+                       label="Poisson source for {}".format(projection.label))
+    )
+    connection_properties = np.array(projection.get(('weight', 'delay', 'U'), format='list'))
+    connection_properties[:, 0] = np.arange(projection.size())
+    connection_list = [tuple(row) for row in connection_properties]
+    connections_spontaneous.append(
+        sim.Projection(stim_spontaneous[-1], projection.post,
+                       sim.FromListConnector(connection_properties, column_names=('weight', 'delay', 'U')),
+                       sim.TsodyksMarkramSynapseEM(),
+                       receptor_type=projection.receptor_type,
+                       label="spontaneous mEPSP connection for {}".format(projection.label))
+    )
 
 network = Network()
 network.populations = [neurons]
 network.stim_populations = [stim]
 network.projections = [connections_exc, connections_inh]
 network.stim_projections = [connections_stim]
+network.stim_spontaneous = stim_spontaneous
+network.spontaneous_projections = connections_spontaneous
 
 from tabulate import tabulate
 
-for item in chain(network.populations, network.stim_populations):
+for item in chain(network.populations, network.stim_populations, network.stim_spontaneous):
     print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
                         engine='jinja2'))
-for item in chain(network.projections, network.stim_projections):
+for item in chain(network.projections, network.stim_projections, network.spontaneous_projections):
     print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
                         engine='jinja2'))
     #print(tabulate(item.get(('weight', 'delay'), format='list')))
@@ -115,10 +135,10 @@ print("Time to save network to file: {} s".format(t3 - t2))
 
 network2 = Network.from_syncell_files("test_neurons.h5", "test_synapses.h5")
 
-for item in chain(network2.populations, network2.stim_populations):
+for item in chain(network2.populations, network2.stim_populations, network.stim_spontaneous):
     print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
                         engine='jinja2'))
-for item in chain(network2.projections, network2.stim_projections):
+for item in chain(network2.projections, network2.stim_projections, network.spontaneous_projections):
     print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
                         engine='jinja2'))
     #if item.size() > 0:
