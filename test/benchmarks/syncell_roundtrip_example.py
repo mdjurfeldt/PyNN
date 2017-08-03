@@ -86,6 +86,7 @@ stim = sim.Population(10, sim.SpikeSourceArray(), label="external stimulation")
 connections_stim = sim.Projection(stim, neurons, sim.FixedProbabilityConnector(p_connect=0.05),
                                   sim.TsodyksMarkramSynapseEM(**synapse_parameters),
                                   receptor_type="exc", label="external input connections")
+
 stim_spontaneous = []
 connections_spontaneous = []
 for projection in (connections_exc, connections_inh, connections_stim):
@@ -105,6 +106,13 @@ for projection in (connections_exc, connections_inh, connections_stim):
                        label="spontaneous mEPSP connection for {}".format(projection.label))
     )
 
+other_hypercolumn = sim.Population(100, sim.RoessertEtAl(**neuron_params), label="other neurons")
+# note that we do not export "other_hypercolumn" to the neurons file,
+# but we do export the connections coming from it to the synapses file
+connections_other = sim.Projection(other_hypercolumn, neurons, sim.FixedProbabilityConnector(p_connect=0.03),
+                                   sim.TsodyksMarkramSynapseEM(**synapse_parameters),
+                                   receptor_type="exc", label="excitatory connections from other hypercolumn")
+
 network = Network()
 network.populations = [neurons]
 network.stim_populations = [stim]
@@ -112,13 +120,16 @@ network.projections = [connections_exc, connections_inh]
 network.stim_projections = [connections_stim]
 network.stim_spontaneous = stim_spontaneous
 network.spontaneous_projections = connections_spontaneous
+network.other_populations = [other_hypercolumn]
+network.other_projections = [connections_other]
+
 
 from tabulate import tabulate
 
-for item in chain(network.populations, network.stim_populations, network.stim_spontaneous):
+for item in chain(network.populations, network.stim_populations, network.stim_spontaneous, network.other_populations):
     print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
                         engine='jinja2'))
-for item in chain(network.projections, network.stim_projections, network.spontaneous_projections):
+for item in chain(network.projections, network.stim_projections, network.spontaneous_projections, network.other_projections):
     print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
                         engine='jinja2'))
     #print(tabulate(item.get(('weight', 'delay'), format='list')))
@@ -135,10 +146,10 @@ print("Time to save network to file: {} s".format(t3 - t2))
 
 network2 = Network.from_syncell_files("test_neurons.h5", "test_synapses.h5")
 
-for item in chain(network2.populations, network2.stim_populations, network.stim_spontaneous):
+for item in chain(network2.populations, network2.stim_populations, network2.stim_spontaneous, network2.other_populations):
     print(item.describe(template="-- Population '{{label}}' {{size}} {{celltype.name}} neurons, {{first_id}}-{{last_id}} {{annotations}}",
                         engine='jinja2'))
-for item in chain(network2.projections, network2.stim_projections, network.spontaneous_projections):
+for item in chain(network2.projections, network2.stim_projections, network2.spontaneous_projections, network2.other_projections):
     print(item.describe(template="-- Projection '{{label}}' with {{size}} connections from {{pre.label}} to {{post.label}}, receptor type '{{receptor_type}}'",
                         engine='jinja2'))
     #if item.size() > 0:

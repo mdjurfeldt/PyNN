@@ -116,7 +116,6 @@ class Network(object):
                 )
                 connection_properties = np.array(projection.get(('weight', 'delay', 'U'), format='list'))
                 connection_properties[:, 0] = np.arange(size)
-                connection_list = [tuple(row) for row in connection_properties]
                 mepsp_connections.append(
                     sim.Projection(mepsp_populations[-1], projection.post,
                                    sim.FromListConnector(connection_properties, column_names=('weight', 'delay', 'U')),
@@ -126,6 +125,53 @@ class Network(object):
                 )
                 offset += size
 
+        # === Create Poisson populations for connections from outside the modelled region =====
+
+        # any gids in presyn_params["pre_gid"] that are not in neuron_params["gid"] or stim_params["stim_gids"]
+        # are from another hypercolumn, so we do not instantiate the neurons, but we do need to
+        # add Poisson sources for the spontaneous EPSPs
+        accounted_for = []
+        pre_gids = presyn_params["pre_gid"].value
+        for population in (neurons, stim):
+            first_gid = population.annotations['first_gid']
+            accounted_for.append(
+                np.logical_and(pre_gids >= first_gid,
+                               pre_gids < first_gid + population.size)
+
+            )
+        not_accounted_for = ~np.logical_or(*accounted_for)
+
+        gids_other = pre_gids[not_accounted_for]
+        weights = 0.001*presyn_params["weight"][not_accounted_for]
+        delays = presyn_params["delay"][not_accounted_for]
+        U = presyn_params["U"][not_accounted_for]
+        receptor_ids = presyn_params["receptor_ids"][not_accounted_for]
+        post_gids = presyn_params["post_gid"][not_accounted_for]
+        firing_rates = presyn_params['poisson_freq'][not_accounted_for]
+
+        other_population = sim.Population(gids_other.size,
+                                          sim.SpikeSourcePoisson(rate=firing_rates),
+                                          label="Poisson source for connections from other neurons")
+        other_population.annotate(gids=gids_other)
+
+        other_projections = []
+        for receptor_id in np.unique(receptor_ids):
+            mask = receptor_ids == receptor_id
+            connection_properties = np.vstack((
+                np.arange(mask.sum()),
+                gid_to_index(neurons, post_gids[mask])[0],
+                weights[mask],
+                delays[mask],
+                U[mask]
+            )).T
+            other_projections.append(
+                sim.Projection(other_population, neurons,
+                               sim.FromListConnector(connection_properties, column_names=('weight', 'delay', 'U')),
+                               sim.TsodyksMarkramSynapseEM(),
+                               receptor_type=str(receptor_id)))
+
+        # === Construct the Network object =====
+
         obj = cls()
         obj.populations = [neurons]
         obj.stim_populations = [stim]
@@ -133,6 +179,8 @@ class Network(object):
         obj.stim_projections = stim_connections
         obj.stim_spontaneous = mepsp_populations
         obj.spontaneous_projections = mepsp_connections
+        obj.other_populations = [other_population]
+        obj.other_projections = other_projections
 
         fn.close()
         fs.close()
@@ -151,7 +199,7 @@ class Network(object):
 
     @property
     def connection_count(self):
-        return sum(prj.size(gather=True) for prj in chain(self.projections, self.stim_projections))
+        return sum(prj.size(gather=True) for prj in chain(self.projections, self.stim_projections, self.other_projections))
 
     def save_to_syncell_files(self, neuron_file_path, synapse_file_path):
         # only saves the first population and projection for now
@@ -219,9 +267,7 @@ class Network(object):
             postsyn_params.create_dataset(name, (n_post, n_receptors), dtype=float)
 
         offset = 0
-        for projection in chain(self.projections, self.stim_projections):
-            assert projection.pre in (self.populations[0], self.stim_populations[0])
-            assert projection.post == self.populations[0]
+        for projection in chain(self.projections, self.stim_projections, self.other_projections):
             projection_size = projection.size(gather=True)
 
             if projection_size > 0:
@@ -274,8 +320,10 @@ def gid_to_index(population, gid):
 
 
 def index_to_gid(population, index):
-    # this relies on gids being sequential
-    if "first_gid" in population.annotations:
+    if "gids" in population.annotations:
+        return population.annotations["gids"][index]
+    # the following rely on gids being sequential
+    elif "first_gid" in population.annotations:
         offset = population.annotations["first_gid"]
     else:
         offset = population.first_id
