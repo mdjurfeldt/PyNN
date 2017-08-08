@@ -123,6 +123,7 @@ class Network(object):
                                    receptor_type=projection.receptor_type,
                                    label="spontaneous mEPSP connection for {}".format(projection.label))
                 )
+                mepsp_connections[-1]._size = size  # optimization
                 offset += size
 
         # === Create Poisson populations for connections from outside the modelled region =====
@@ -157,8 +158,9 @@ class Network(object):
         other_projections = []
         for receptor_id in np.unique(receptor_ids):
             mask = receptor_ids == receptor_id
+            size = mask.sum()
             connection_properties = np.vstack((
-                np.arange(mask.sum()),
+                np.arange(size),
                 gid_to_index(neurons, post_gids[mask])[0],
                 weights[mask],
                 delays[mask],
@@ -169,6 +171,7 @@ class Network(object):
                                sim.FromListConnector(connection_properties, column_names=('weight', 'delay', 'U')),
                                sim.TsodyksMarkramSynapseEM(),
                                receptor_type=str(receptor_id)))
+            other_projections[-1]._size = size  # optimization
 
         # === Construct the Network object =====
 
@@ -273,17 +276,20 @@ class Network(object):
             if projection_size > 0:
 
                 receptor_index = self.get_receptor_index(projection.receptor_type)
-
                 presyn_params["receptor_ids"][offset:projection_size + offset] = receptor_index + 1  # receptor_ids count from 1
-                for name in presyn_attribute_names:
-                    values = np.array(projection.get(name, format='list', gather=True, with_address=False))
+                synapse_properties = np.array(projection.get(presyn_attribute_names, format='list', gather=True, with_address=True)).T
+
+                for i, name in enumerate(presyn_attribute_names):
+                    ##values = np.array(projection.get(name, format='list', gather=True, with_address=False))
+                    values = synapse_properties[i + 2]
                     # todo: translate names and units where needed
                     if name == "weight":
                         values *= 1000
                     presyn_params[name][offset:projection_size + offset] = values
 
-                presyn_idx, postsyn_idx, _ = np.array(
-                    projection.get('weight', format='list', gather=True, with_address=True)).T
+                ##presyn_idx, postsyn_idx, _ = np.array(
+                ##    projection.get('weight', format='list', gather=True, with_address=True)).T
+                presyn_idx, postsyn_idx = synapse_properties[0:2, :]
                 presyn_idx = presyn_idx.astype(int)
                 postsyn_idx = postsyn_idx.astype(int)
                 presyn_params["pre_gid"][offset:projection_size + offset] = index_to_gid(projection.pre, presyn_idx)
@@ -345,6 +351,7 @@ class SynCellFileConnector(Connector):
 
     def connect(self, projection):
         mask2 = self.presyn_params["receptor_ids"].value == int(projection.receptor_type)
+        n_connections = 0
         for post_index in projection.post._mask_local.nonzero()[0]:
             post_gid = index_to_gid(projection.post, post_index)
             # could process file by chunks, if memory becomes a problem for these masks
@@ -366,3 +373,5 @@ class SynCellFileConnector(Connector):
 
                 # create connections
                 projection._convergent_connect(pre_indices, post_index, **connection_parameters)
+                n_connections += pre_indices.size
+        projection._size = n_connections  # optimization, to avoid calling GetConnections

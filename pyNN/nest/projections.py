@@ -50,6 +50,7 @@ class Projection(common.Projection):
         self.synapse_type._set_tau_minus(self.post.local_cells)
         self._sources = []
         self._connections = None
+        self._size = None
         # This is used to keep track of common synapse properties (to my
         # knowledge they only become apparent once connections are created
         # within nest --obreitwi, 13-02-14)
@@ -75,11 +76,13 @@ class Projection(common.Projection):
 
     def __len__(self):
         """Return the number of connections on the local MPI node."""
-        local_nodes = nest.GetNodes([0], local_only=True)[0]
-        local_connections = nest.GetConnections(target=local_nodes,
-                                                synapse_model=self.nest_synapse_model,
-                                                synapse_label=self.nest_synapse_label)
-        return len(local_connections)
+        if self._size is None:
+            local_nodes = nest.GetNodes([0], local_only=True)[0]
+            local_connections = nest.GetConnections(target=local_nodes,
+                                                    synapse_model=self.nest_synapse_model,
+                                                    synapse_label=self.nest_synapse_label)
+            self._size = len(local_connections)
+        return self._size
 
     @property
     def nest_connections(self):
@@ -127,6 +130,7 @@ class Projection(common.Projection):
                      rule_params, syn_params)
         self._sources = [cid[0] for cid in nest.GetConnections(synapse_model=self.nest_synapse_model,
                                                                synapse_label=self.nest_synapse_label)]
+        self._size = None
 
     def _convergent_connect(self, presynaptic_indices, postsynaptic_index,
                             **connection_parameters):
@@ -186,6 +190,7 @@ class Projection(common.Projection):
 
         # Book-keeping
         self._connections = None  # reset the caching of the connection list, since this will have to be recalculated
+        self._size = None
         self._sources.extend(presynaptic_cells)
 
         # Clean the connection parameters

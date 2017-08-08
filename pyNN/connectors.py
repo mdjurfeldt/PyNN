@@ -925,6 +925,8 @@ class CloneConnector(MapConnector):
     """
     Connects cells with the same connectivity pattern as a previous projection.
     """
+    # Doesn't work with multapses
+
     parameter_names = ('reference_projection',)
 
     def __init__(self, reference_projection, safe=True, callback=None):
