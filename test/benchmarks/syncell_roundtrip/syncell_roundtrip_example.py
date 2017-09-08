@@ -78,10 +78,10 @@ synapse_parameters = {
     "U":  RandomDistribution("normal", (0.8, 0.01), rng=rng),
 }
 
-n_neurons = 8000
+n_neurons = 4000
 n_stim = n_neurons//10
 n_other = n_neurons//10
-n_connections = 400  # /per neuron
+n_connections = 200  # /per neuron
 
 neurons = sim.Population(n_neurons, sim.RoessertEtAl(**neuron_params), label="neurons")
 connections_exc = sim.Projection(neurons, neurons, sim.FixedNumberPostConnector(n=n_connections,
@@ -203,7 +203,7 @@ if describe_network:
 t4a = time()
 print("Time to describe loaded network: {} s".format(t4a - t4))
 
-network2.save_to_syncell_files2("test2_neurons.h5", "test2_synapses.h5")
+network2.save_to_syncell_files("test2_neurons.h5", "test2_synapses.h5")
 
 t5 = time()
 print("Time to save network to file again: {} s".format(t5 - t4a))

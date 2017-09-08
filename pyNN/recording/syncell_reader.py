@@ -14,6 +14,9 @@ from pyNN.parameters import Sequence
 from pyNN.nest.standardmodels.cells import RoessertEtAl as RoessertEtAl_nest
 import pyNN.nest as sim
 
+from . import get_mpi_comm, gather_dict
+
+mpi_comm, mpi_flags = get_mpi_comm()
 
 
 class Network(object):
@@ -204,10 +207,27 @@ class Network(object):
     def connection_count(self):
         return sum(prj.size(gather=True) for prj in chain(self.projections, self.stim_projections, self.other_projections))
 
-    def save_to_syncell_files(self, neuron_file_path, synapse_file_path):
+    def _get_local_sizes(self, population):
+        size = {sim.rank(): population.local_size}
+        return gather_dict(size, all=True)
+
+    def _get_mpi_offset(self, population):
+        local_sizes = self._get_local_sizes(population)
+        mpi_offsets = [0]
+        for i in range(1, sim.num_processes()):
+            mpi_offsets.append(local_sizes[i - 1] + mpi_offsets[i - 1])
+        return mpi_offsets[sim.rank()]
+
+    def save_to_syncell_files(self, neuron_file_path, synapse_file_path, write_parallel=False):
         # only saves the first population and projection for now
-        fn = h5py.File(neuron_file_path, "w")
-        fs = h5py.File(synapse_file_path, "w")
+
+        if write_parallel:
+            fn = h5py.File(neuron_file_path, "w", driver = 'mpio', comm=mpi_comm)
+            fs = h5py.File(synapse_file_path, "w", driver = 'mpio', comm=mpi_comm)
+        else:
+            fn = h5py.File(neuron_file_path, "w")
+            fs = h5py.File(synapse_file_path, "w")
+        gather = not write_parallel
 
         neuron_params = fn.create_group("neurons/default")  # use population.label instead of "default"?
         presyn_params =  fs.create_group("presyn/default")
@@ -221,10 +241,12 @@ class Network(object):
         # so if using pyNN.nest we could take a shortcut and avoid
         # double translation.
         # Not doing this yet, for generality
-        parameters = self.populations[0]._get_parameter_dict(names, gather=True, simplify=True)
+        parameters = self.populations[0]._get_parameter_dict(names, gather=gather, simplify=True)
         translated_parameters = RoessertEtAl_nest(**parameters).native_parameters
-        translated_parameters.shape = (self.populations[0].size,)
+        translated_parameters.shape = (self.populations[0].local_size,)
         translated_parameters.evaluate(simplify=False)
+
+        mpi_offset = self._get_mpi_offset(self.populations[0])
 
         psr_names = ['tau_d_fast', 'tau_d_slow', 'tau_r_fast', 'tau_r_slow',
                      'E_rev', 'E_rev_B', 'ratio_slow', 'mg', 'tau_corr']
@@ -233,24 +255,32 @@ class Network(object):
             if name not in excluded_names:
                 if isinstance(value[0], Sequence):
                     value = np.array([seq.value for seq in value])
-                neuron_params.create_dataset(name, data=value)
+                neuron_params.create_dataset(name, shape=(self.populations[0].size,), dtype='f')  # check if this is the correct dtype
+                neuron_params[name][mpi_offset:mpi_offset + value.size] = value
 
         def get_gids(population):
             if 'first_gid' in population.annotations:
                 gid_offset = population.annotations['first_gid'] - population[0]
             else:
                 gid_offset = 0
-            gids = population.all_cells.astype(int) + gid_offset
+            gids = population.local_cells.astype(int) + gid_offset
             return gids
 
         gids = get_gids(self.populations[0])
-        neuron_params.create_dataset('gid', data=gids)
+        neuron_params.create_dataset('gid', shape=(self.populations[0].size,), dtype='i4')
+        neuron_params['gid'][mpi_offset:mpi_offset + gids.size] = gids
 
         # Write to "stimulation" group
+        mpi_offset = self._get_mpi_offset(self.stim_populations[0])
         stim_gids = get_gids(self.stim_populations[0])
-        stim_params.create_dataset('gid', data=gids)
-        stim_params.create_dataset('rho_stim', data=translated_parameters['rho_stim'])
-        stim_params.create_dataset('stim_gids', data=stim_gids)
+        stim_params.create_dataset('gid', shape=(self.stim_populations[0].size,), dtype='i4')
+        stim_params['gid'][mpi_offset:mpi_offset + gids.size] = stim_gids
+        stim_params.create_dataset('rho_stim', shape=(self.stim_populations[0].size,), dtype='f')
+        stim_params['rho_stim'][mpi_offset:mpi_offset + stim_gids.size] = translated_parameters['rho_stim']
+        stim_params.create_dataset('stim_gids', shape=(self.stim_populations[0].size,), dtype='f')
+        stim_params['stim_gids'][mpi_offset:mpi_offset + stim_gids.size] = stim_gids
+
+        ### UPDATED FOR PARALLEL WRITING AS FAR AS HERE - TO FINISH
 
         # Write to "presyn" and "postsyn" groups
         presyn_attribute_names = self.projections[0].synapse_type.get_parameter_names()
