@@ -54,7 +54,7 @@ class PopulationMixin(object):
                 elif isinstance(val, numpy.ndarray) and (isinstance(val[0], tuple) or len(val.shape) == 2):
                     val = numpy.array([Sequence(v) for v in val])
                     val = LazyArray(simplify(val), shape=(self.local_size,), dtype=Sequence)
-                parameter_dict[name] = val
+                parameter_dict[name] = simplify(val)
         ps = ParameterSpace(parameter_dict, shape=(self.local_size,))
         return ps
 
