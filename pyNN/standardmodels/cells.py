@@ -797,8 +797,16 @@ class RoessertEtAl(StandardCellType):
 
     @property
     def receptor_types(self):
+        # should really check all receptor parameters, but for now we'll take a shortcut
+        # and assume they all have the same form - either all dict, or all list of dicts
         if "tau_syn_fast_rise" in self.parameter_space.keys():
-            return list(sorted(self.parameter_space["tau_syn_fast_rise"].keys()))
+            if hasattr(self.parameter_space["tau_syn_fast_rise"], "keys"):  # dict
+                return sorted(self.parameter_space["tau_syn_fast_rise"].keys())
+            else:  # list of dicts
+                rts = set([])
+                for item in self.parameter_space["tau_syn_fast_rise"].base_value:
+                    rts.update(item)
+                return sorted(rts)
         else:
             return []
 

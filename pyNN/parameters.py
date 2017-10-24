@@ -290,7 +290,12 @@ class ParameterSpace(object):
                                                            valid_parameter_names=self.schema.keys())
 
                 if expected_dtype == dict:
-                    self._parameters[name] = ParameterSpace(value, shape=self.shape)  # todo: hierarchical schemas
+                    if hasattr(value, "items"):  # value is a mapping
+                        self._parameters[name] = ParameterSpace(value, shape=self.shape)  # todo: hierarchical schemas
+                    elif hasattr(value, "__len__") and len(value) > 0 and isinstance(value[0], expected_dtype):   # list of dicts, or similar
+                        self._parameters[name] = LazyArray(value, shape=self._shape, dtype=expected_dtype)
+                    else:
+                        raise TypeError("Expecting either a dict or a list of dicts")  # todo: handle other valid PyNN parameter types, e.g. functions
                 else:
                     if expected_dtype == Sequence and isinstance(value, collections.Sized):
                         if len(value) == 0:
