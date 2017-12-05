@@ -19,43 +19,28 @@ from pyNN.standardmodels import electrodes, build_translations, StandardCurrentS
 from pyNN.common import Population, PopulationView, Assembly
 from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.nest.simulator import state
+from pyNN.nest.electrodes import NestCurrentSource
 
 
-class NestCurrentSource(StandardCurrentSource):
+class NestStandardCurrentSource(NestCurrentSource, StandardCurrentSource):
     """Base class for a nest source of current to be injected into a neuron."""
 
     def __init__(self, **parameters):
-        self._device = nest.Create(self.nest_name)
-        self.cell_list = []
-        parameter_space = ParameterSpace(self.default_parameters,
-                                         self.get_schema(),
-                                         shape=(1,))
-        parameter_space.update(**parameters)
-        parameter_space = self.translate(parameter_space)
-        self.set_native_parameters(parameter_space)
+        NestCurrentSource.__init__(self, **parameters)
+        self.phase_given = 0.0  # required for PR #502
+        native_parameters = self.translate(self.parameter_space)
+        self.set_native_parameters(native_parameters)
 
-    def inject_into(self, cells):
-        __doc__ = StandardCurrentSource.inject_into.__doc__
-        for id in cells:
-            if id.local and not id.celltype.injectable:
-                raise TypeError("Can't inject current into a spike source.")
-        if isinstance(cells, (Population, PopulationView, Assembly)):
-            self.cell_list = [cell for cell in cells]
-        else:
-            self.cell_list = cells
-        nest.Connect(self._device, self.cell_list, syn_spec={"delay": state.min_delay})
-
-    def _delay_correction(self, value):
+    def _phase_correction(self, start, freq, phase):
         """
-        A change in a device requires a min_delay to take effect at the target
+        Fixes #497 (PR #502)
+        Tweaks the value of phase supplied to NEST ACSource
+        so as to remain consistent with other simulators
         """
-        corrected = value - state.min_delay
-        # set negative times to zero
-        if isinstance(value, numpy.ndarray):
-            corrected = numpy.where(corrected > 0, corrected, 0.0)
-        else:
-            corrected = max(corrected, 0.0)
-        return corrected
+        phase_fix = ( (phase*numpy.pi/180) - (2*numpy.pi*freq*start/1000)) * 180/numpy.pi
+        phase_fix.shape = (1)
+        phase_fix = phase_fix.evaluate()[0]
+        nest.SetStatus(self._device, {'phase': phase_fix})
 
     def set_native_parameters(self, parameters):
         parameters.evaluate(simplify=True)
@@ -63,17 +48,26 @@ class NestCurrentSource(StandardCurrentSource):
             if key == "amplitude_values":
                 assert isinstance(value, Sequence)
                 times = self._delay_correction(parameters["amplitude_times"].value)
-                numpy.append(times, 1e12)
                 amplitudes = value.value
-                numpy.append(amplitudes, amplitudes[-1])
-                if amplitudes[0] != 0:
-                    times[0] = max(times[0], state.dt)  # NEST ignores changes at time zero.
-                    # must it be dt, or would any positive value work?
-                    # this will fail if the second, third, etc. time points are also close to zero
+                ctr = next((i for i,v in enumerate(times) if v > state.dt), len(times)) - 1
+                if ctr >= 0:
+                    times[ctr] = state.dt
+                    times = times[ctr:]
+                    amplitudes = amplitudes[ctr:]
+                for ind in range(len(times)):
+                    times[ind] = self._round_timestamp(times[ind], state.dt)                
                 nest.SetStatus(self._device, {key: amplitudes,
                                               'amplitude_times': times})
             elif key in ("start", "stop"):
                 nest.SetStatus(self._device, {key: self._delay_correction(value)})
+                if key == "start" and type(self).__name__ == "ACSource":
+                    self._phase_correction(self.start, self.frequency, self.phase_given)
+            elif key == "frequency":
+                nest.SetStatus(self._device, {key: value})
+                self._phase_correction(self.start, self.frequency, self.phase_given)
+            elif key == "phase":
+                self.phase_given = value
+                self._phase_correction(self.start, self.frequency, self.phase_given)
             elif not key == "amplitude_times":
                 nest.SetStatus(self._device, {key: value})
 
@@ -83,7 +77,7 @@ class NestCurrentSource(StandardCurrentSource):
                                    if k in self.get_native_names()))
 
 
-class DCSource(NestCurrentSource, electrodes.DCSource):
+class DCSource(NestStandardCurrentSource, electrodes.DCSource):
     __doc__ = electrodes.DCSource.__doc__
 
     translations = build_translations(
@@ -94,7 +88,7 @@ class DCSource(NestCurrentSource, electrodes.DCSource):
     nest_name = 'dc_generator'
 
 
-class ACSource(NestCurrentSource, electrodes.ACSource):
+class ACSource(NestStandardCurrentSource, electrodes.ACSource):
     __doc__ = electrodes.ACSource.__doc__
 
     translations = build_translations(
@@ -108,7 +102,7 @@ class ACSource(NestCurrentSource, electrodes.ACSource):
     nest_name = 'ac_generator'
 
 
-class StepCurrentSource(NestCurrentSource, electrodes.StepCurrentSource):
+class StepCurrentSource(NestStandardCurrentSource, electrodes.StepCurrentSource):
     __doc__ = electrodes.StepCurrentSource.__doc__
 
     translations = build_translations(
@@ -118,7 +112,7 @@ class StepCurrentSource(NestCurrentSource, electrodes.StepCurrentSource):
     nest_name = 'step_current_generator'
 
 
-class NoisyCurrentSource(NestCurrentSource, electrodes.NoisyCurrentSource):
+class NoisyCurrentSource(NestStandardCurrentSource, electrodes.NoisyCurrentSource):
     __doc__ = electrodes.NoisyCurrentSource.__doc__
 
     translations = build_translations(
