@@ -277,18 +277,15 @@ class BasePopulation(object):
             return_list = False
         else:
             return_list = True
-        if isinstance(self.celltype, standardmodels.StandardCellType):
-            if any(name in self.celltype.computed_parameters() for name in parameter_names):
-                native_names = self.celltype.get_native_names()  # need all parameters in order to calculate values
-            else:
-                native_names = self.celltype.get_native_names(*parameter_names)
-            native_parameter_space = self._get_parameters(*native_names)
-            parameter_space = self.celltype.reverse_translate(native_parameter_space)
-        else:
-            parameter_space = self._get_parameters(*parameter_names)
+
+        parameter_space = self._get_parameters(*parameter_names)
+
+        parameter_space.shape = (self.local_size,)
         parameter_space.evaluate(simplify=simplify)  # what if parameter space is homogeneous on some nodes but not on others?
                                                      # this also causes problems if the population size matches the number of MPI nodes
-        parameters = dict(parameter_space.items())
+        parameter_space.flatten()
+        parameters = parameter_space.as_dict()
+
         if gather == True and self._simulator.state.num_processes > 1:
             # seems inefficient to do it in a loop - should do as single operation
             for name in parameter_names:
@@ -305,11 +302,11 @@ class BasePopulation(object):
                         idx = numpy.argsort(indices)
                         values = numpy.array(values)[idx]
                 parameters[name] = values
+
         try:
             values = [parameters[name] for name in parameter_names]
         except KeyError as err:
-            raise errors.NonExistentParameterError("%s. Valid parameters for %s are: %s" % (
-                err, self.celltype, self.celltype.get_parameter_names()))
+            raise errors.NonExistentParameterError(err.args[0], self.celltype, self.celltype.get_parameter_names())
         if return_list:
             return values
         else:
@@ -341,10 +338,10 @@ class BasePopulation(object):
         # TODO: add example using of function of (x,y,z) and Population.position_generator
         if self.local_size > 0:
             if (isinstance(self.celltype, standardmodels.StandardCellType)
-                and any(name in self.celltype.computed_parameters() for name in parameters)):
+                and self.celltype.computed_parameters_include(parameters)):
                 # need to get existing parameter space of models so we can perform calculations
                 native_names = self.celltype.get_native_names()
-                parameter_space = self.celltype.reverse_translate(self._get_parameters(*native_names))
+                parameter_space = self.celltype.reverse_translate(self._get_native_parameters(*native_names))
                 if self.local_size != self.size:
                     parameter_space.expand((self.size,), self._mask_local)
                 parameter_space.update(**parameters)

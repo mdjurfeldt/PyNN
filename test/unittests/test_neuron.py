@@ -252,9 +252,9 @@ class TestPopulation(unittest.TestCase):
         self.p = sim.Population(4, sim.IF_cond_exp(**{'tau_m': 12.3,
                                                       'cm': lambda i: 0.987 + 0.01 * i,
                                                       'i_offset': numpy.array([-0.21, -0.20, -0.19, -0.18])}))
-
-    def test__get_parameters(self):
-        ps = self.p._get_parameters('c_m', 'tau_m', 'e_e', 'i_offset')
+                                                      
+    def test__get_native_parameters(self):
+        ps = self.p._get_native_parameters('c_m', 'tau_m', 'e_e', 'i_offset')
         ps.evaluate(simplify=True)
         assert_array_almost_equal(ps['c_m'], numpy.array([0.987, 0.997, 1.007, 1.017], float),
                                   decimal=12)

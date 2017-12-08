@@ -29,6 +29,18 @@ class PopulationMixin(object):
                 setattr(cell._cell, name, val)
 
     def _get_parameters(self, *names):
+        if isinstance(self.celltype, StandardCellType):
+            if any(name in self.celltype.computed_parameters() for name in names):
+                native_names = self.celltype.get_native_names()  # need all parameters in order to calculate values
+            else:
+                native_names = self.celltype.get_native_names(*names)
+            native_parameter_space = self._get_native_parameters(*native_names)
+            parameter_space = self.celltype.reverse_translate(native_parameter_space)
+        else:
+            parameter_space = self._get_native_parameters(*names)
+        return parameter_space
+
+    def _get_native_parameters(self, *names):
         """
         return a ParameterSpace containing native parameters
         """
