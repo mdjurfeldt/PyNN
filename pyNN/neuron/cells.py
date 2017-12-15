@@ -46,7 +46,7 @@ def _new_property(obj_hierarchy, attr_name):
 
 
 def guess_units(variable):
-    # works with NEURON 7.3, not with 7.1, 7.2 not tested
+    # works with NEURON 7.3+, not with 7.1, 7.2 not tested
     nrn_units = h.units(variable.split('.')[-1])
     pq_units = nrn_units.replace("2", "**2").replace("3", "**3")
     return pq_units
@@ -61,7 +61,7 @@ class NativeCellType(BaseCellType):
     # todo: use `guess_units` to construct "units" attribute
 
 
-class BaseSingleCompartmentNeuron(nrn.Section):
+class SingleCompartmentNeuron(nrn.Section):
     """docstring"""
 
     def __init__(self, c_m, i_offset):
@@ -105,17 +105,18 @@ class BaseSingleCompartmentNeuron(nrn.Section):
             setattr(self, name, param_dict[name])
 
 
-class SingleCompartmentNeuron(BaseSingleCompartmentNeuron):
-    """Single compartment with excitatory and inhibitory synapses"""
+class StandardReceptorTypesMixin(object):
+    """
+    A mixin class to add the standard excitatory and inhibitory
+    post-synaptic receptors to a model.
+    """
 
     synapse_models = {
         'current': {'exp': h.ExpISyn, 'alpha': h.AlphaISyn},
         'conductance': {'exp': h.ExpSyn, 'alpha': h.AlphaSyn},
     }
 
-    def __init__(self, syn_type, syn_shape, c_m, i_offset,
-                 tau_e, tau_i, e_e, e_i):
-        BaseSingleCompartmentNeuron.__init__(self, c_m, i_offset)
+    def __init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i):
 
         self.syn_type = syn_type
         self.syn_shape = syn_shape
@@ -166,10 +167,8 @@ class SingleCompartmentNeuron(BaseSingleCompartmentNeuron):
 
 class LeakySingleCompartmentNeuron(SingleCompartmentNeuron):
 
-    def __init__(self, syn_type, syn_shape, tau_m, c_m, v_rest, i_offset,
-                 tau_e, tau_i, e_e, e_i):
-        SingleCompartmentNeuron.__init__(self, syn_type, syn_shape, c_m, i_offset,
-                                         tau_e, tau_i, e_e, e_i)
+    def __init__(self, tau_m, c_m, v_rest, i_offset):
+        SingleCompartmentNeuron.__init__(self, c_m, i_offset)
         self.insert('pas')
         self.v_init = v_rest  # default value
 
@@ -199,7 +198,7 @@ class LeakySingleCompartmentNeuron(SingleCompartmentNeuron):
                                                     # be used first
 
 
-class StandardIF(LeakySingleCompartmentNeuron):
+class StandardIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
     """docstring"""
 
     def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
@@ -207,8 +206,8 @@ class StandardIF(LeakySingleCompartmentNeuron):
                  tau_e=5, tau_i=5, e_e=0, e_i=-70):
         if v_reset is None:
             v_reset = v_rest
-        LeakySingleCompartmentNeuron.__init__(self, syn_type, syn_shape, tau_m, c_m, v_rest,
-                                              i_offset, tau_e, tau_i, e_e, e_i)
+        LeakySingleCompartmentNeuron.__init__(self, tau_m, c_m, v_rest, i_offset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i)                                      
         # insert spike reset mechanism
         self.spike_reset = h.ResetRefrac(0.5, sec=self)
         self.spike_reset.vspike = 40  # (mV) spike height
@@ -227,7 +226,7 @@ class StandardIF(LeakySingleCompartmentNeuron):
     t_refrac = _new_property('spike_reset', 'trefrac')
 
 
-class BretteGerstnerIF(LeakySingleCompartmentNeuron):
+class BretteGerstnerIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
     """docstring"""
 
     def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
@@ -235,9 +234,8 @@ class BretteGerstnerIF(LeakySingleCompartmentNeuron):
                  tau_e=5, tau_i=5, e_e=0, e_i=-70,
                  v_spike=0.0, v_reset=-70.6, A=4.0, B=0.0805, tau_w=144.0,
                  delta=2.0):
-        LeakySingleCompartmentNeuron.__init__(self, syn_type, syn_shape, tau_m,
-                                              c_m, v_rest, i_offset,
-                                              tau_e, tau_i, e_e, e_i)
+        LeakySingleCompartmentNeuron.__init__(self, tau_m, c_m, v_rest, i_offset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i) 
 
         # insert Brette-Gerstner spike mechanism
         self.adexp = h.AdExpIF(0.5, sec=self)
@@ -299,11 +297,11 @@ class BretteGerstnerIF(LeakySingleCompartmentNeuron):
         self.adexp.w = self.w_init
 
 
-class Izhikevich_(BaseSingleCompartmentNeuron):
+class Izhikevich_(SingleCompartmentNeuron):
     """docstring"""
 
     def __init__(self, a_=0.02, b=0.2, c=-65.0, d=2.0, i_offset=0.0):
-        BaseSingleCompartmentNeuron.__init__(self, 1.0, i_offset)
+        SingleCompartmentNeuron.__init__(self, 1.0, i_offset)
         self.L = 10
         self.seg.diam = 10 / pi
         self.c_m = 1.0
@@ -383,7 +381,7 @@ class GsfaGrrIF(StandardIF):
     v_thresh = property(fget=__get_v_thresh, fset=__set_v_thresh)
 
 
-class SingleCompartmentTraub(SingleCompartmentNeuron):
+class SingleCompartmentTraub(SingleCompartmentNeuron, StandardReceptorTypesMixin):
 
     def __init__(self, syn_type, syn_shape, c_m=1.0, e_leak=-65,
                  i_offset=0, tau_e=5, tau_i=5, e_e=0, e_i=-70,
@@ -392,8 +390,8 @@ class SingleCompartmentTraub(SingleCompartmentNeuron):
         """
         Conductances are in millisiemens (S/cm2, since A = 1e-3)
         """
-        SingleCompartmentNeuron.__init__(self, syn_type, syn_shape, c_m, i_offset,
-                                         tau_e, tau_i, e_e, e_i)
+        SingleCompartmentNeuron.__init__(self, c_m, i_offset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i)
         self.source = self.seg._ref_v
         self.source_section = self
         self.rec = h.NetCon(self.source, None, sec=self)
@@ -420,7 +418,7 @@ class SingleCompartmentTraub(SingleCompartmentNeuron):
         return 10.0
 
 
-class GIFNeuron(LeakySingleCompartmentNeuron):
+class GIFNeuron(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
     """
     to write...
 
@@ -447,9 +445,8 @@ class GIFNeuron(LeakySingleCompartmentNeuron):
                  tau_gamma=(5.0, 200.0, 250.0),
                  a_gamma=(15.0, 3.0, 1.0)):
 
-        LeakySingleCompartmentNeuron.__init__(self, syn_type, syn_shape, tau_m,
-                                              c_m, v_rest, i_offset,
-                                              tau_e, tau_i, e_e, e_i)
+        LeakySingleCompartmentNeuron.__init__(self, tau_m, c_m, v_rest, i_offset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i) 
 
         self.gif_fun = h.GifCurrent(0.5, sec=self)
         self.source = self.gif_fun
