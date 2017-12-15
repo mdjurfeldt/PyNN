@@ -503,7 +503,10 @@ class AdExp(StandardCellTypeComponent):
         'v_thresh': -50.4,     # Spike initiation threshold in mV
     }
     injectable = True
-
+    default_initial_values = {
+        'v': -70.6,  # 'v_rest',
+        'w': 0.0
+    }
     units = {
         'v': 'mV',
         'w': 'nA',
@@ -549,6 +552,10 @@ class PointNeuron(StandardCellType):
         #for name in self.receptor_types:
         #    _units['{}.gsyn'.format(name)] = 'uS'
         return _units
+
+    @property
+    def default_initial_values(self):
+        return self.neuron.default_initial_values
 
     def simple_parameters(self):
         """Return a list of parameters for which there is a one-to-one

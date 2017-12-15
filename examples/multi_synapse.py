@@ -1,7 +1,7 @@
 """
-A demonstration of the use of the AdExp model, which allows an unlimited number
-of different synapse models.
-
+A demonstration of the use of the PointNeuron model, which allows the composition
+of any neuron model with an unlimited number of different synapse models
+(although not all combinations will be available on all backend simulators).
 
 Usage: multi_synapse.py [-h] [--plot-figure] [--debug DEBUG] simulator
 

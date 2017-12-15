@@ -418,6 +418,13 @@ class ParameterSpace(object):
                 else:
                     D[name] = value
                 assert not isinstance(D[name], LazyArray)  # should all have been evaluated by now
+            for name, child in self.children.items():
+                D[name] = {}
+                for cname, cvalue in child.items():
+                    if is_listlike(cvalue):
+                        D[name][cname] = cvalue[i]
+                    else:
+                        D[name][cname] = cvalue
             yield D
 
     def columns(self):

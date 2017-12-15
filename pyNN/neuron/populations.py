@@ -124,13 +124,17 @@ class Population(common.Population, PopulationMixin):
             parameter_space = self.celltype.parameter_space
         parameter_space.shape = (self.size,)
         parameter_space.evaluate(mask=None)
+        if hasattr(self.celltype, "post_synaptic_receptors"):
+            psrs = { name: psr.model for name, psr in self.celltype.post_synaptic_receptors.items() }
+        else:
+            psrs = None
         for i, (id, is_local, params) in enumerate(zip(self.all_cells, self._mask_local, parameter_space)):
             self.all_cells[i] = simulator.ID(id)
             self.all_cells[i].parent = self
             if is_local:
                 if hasattr(self.celltype, "extra_parameters"):
                     params.update(self.celltype.extra_parameters)
-                self.all_cells[i]._build_cell(self.celltype.model, params)
+                self.all_cells[i]._build_cell(self.celltype.model, params, psrs)
         simulator.initializer.register(*self.all_cells[self._mask_local])
         simulator.state.gid_counter += self.size
 

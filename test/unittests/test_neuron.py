@@ -433,13 +433,13 @@ class TestRecorder(unittest.TestCase):
 class TestStandardIF(unittest.TestCase):
     
     def test_create_cond_exp(self):
-        cell = cells.StandardIF("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
+        cell = cells.StandardIFStandardReceptors("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
         self.assertAlmostEqual(cell.area(), 1e5, places=10)  # µm²
         self.assertEqual(cell(0.5).cm, 0.246)
         self.assertEqual(cell(0.5).pas.g, 2e-5)
 
     def test_get_attributes(self):
-        cell = cells.StandardIF("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
+        cell = cells.StandardIFStandardReceptors("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
         self.assertAlmostEqual(cell.tau_m, 12.3, places=10)
         self.assertAlmostEqual(cell.c_m, 0.246, places=10)
 

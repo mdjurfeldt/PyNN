@@ -15,6 +15,7 @@
 *.tmp*
 *.swp
 .idea
+.vscode
 
 # Compiled source
 *.py[ocd]

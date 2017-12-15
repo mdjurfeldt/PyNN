@@ -87,6 +87,8 @@ class SingleCompartmentNeuron(nrn.Section):
 
         self.v_init = None
 
+        self.parameters = {'c_m': c_m, 'i_offset': i_offset}
+
     def area(self):
         """Membrane area in µm²"""
         return pi * self.L * self.seg.diam
@@ -100,9 +102,10 @@ class SingleCompartmentNeuron(nrn.Section):
             seg.v = self.v_init
         #self.seg.v = self.v_init
 
-    def set_parameters(self, param_dict):
-        for name in self.parameter_names:
-            setattr(self, name, param_dict[name])
+    def set_parameters(self):
+        for name, value in self.parameters.items():
+            print("Setting {} to {}".format(name, value))
+            setattr(self, name, value)
 
 
 class StandardReceptorTypesMixin(object):
@@ -127,6 +130,9 @@ class StandardReceptorTypesMixin(object):
         synapse_model = self.synapse_models[syn_type][syn_shape]
         self.esyn = synapse_model(0.5, sec=self)
         self.isyn = synapse_model(0.5, sec=self)
+        self.parameters.update(tau_e=tau_e, tau_i=tau_i)
+        if syn_type == 'conductance':
+            self.parameters.update(e_e=e_e, e_i=e_i)
 
     @property
     def excitatory(self):
@@ -171,6 +177,7 @@ class LeakySingleCompartmentNeuron(SingleCompartmentNeuron):
         SingleCompartmentNeuron.__init__(self, c_m, i_offset)
         self.insert('pas')
         self.v_init = v_rest  # default value
+        self.parameters.update(tau_m=tau_m, v_rest=v_rest)
 
     def __set_tau_m(self, value):
         #print("setting tau_m to", value, "cm =", self.seg.cm))
@@ -198,16 +205,14 @@ class LeakySingleCompartmentNeuron(SingleCompartmentNeuron):
                                                     # be used first
 
 
-class StandardIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
+class StandardIF(LeakySingleCompartmentNeuron):
     """docstring"""
 
-    def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
-                 v_thresh=-55, t_refrac=2, i_offset=0, v_reset=None,
-                 tau_e=5, tau_i=5, e_e=0, e_i=-70):
+    def __init__(self, tau_m=20, c_m=1.0, v_rest=-65,
+                 v_thresh=-55, t_refrac=2, i_offset=0, v_reset=None):
         if v_reset is None:
             v_reset = v_rest
         LeakySingleCompartmentNeuron.__init__(self, tau_m, c_m, v_rest, i_offset)
-        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i)                                      
         # insert spike reset mechanism
         self.spike_reset = h.ResetRefrac(0.5, sec=self)
         self.spike_reset.vspike = 40  # (mV) spike height
@@ -215,39 +220,42 @@ class StandardIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
         self.rec = h.NetCon(self.source, None)
 
         # process arguments
-        self.parameter_names = ['c_m', 'tau_m', 'v_rest', 'v_thresh', 't_refrac',   # 'c_m' must come before 'tau_m'
-                                'i_offset', 'v_reset', 'tau_e', 'tau_i']
-        if syn_type == 'conductance':
-            self.parameter_names.extend(['e_e', 'e_i'])
-        self.set_parameters(locals())
+        self.parameters.update(v_thresh=v_thresh, t_refrac=t_refrac, v_reset=v_reset)
 
     v_thresh = _new_property('spike_reset', 'vthresh')
     v_reset = _new_property('spike_reset', 'vreset')
     t_refrac = _new_property('spike_reset', 'trefrac')
 
 
-class BretteGerstnerIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
+class StandardIFStandardReceptors(StandardIF, StandardReceptorTypesMixin):
     """docstring"""
 
     def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
-                 v_thresh=-55, t_refrac=2, i_offset=0,
-                 tau_e=5, tau_i=5, e_e=0, e_i=-70,
-                 v_spike=0.0, v_reset=-70.6, A=4.0, B=0.0805, tau_w=144.0,
-                 delta=2.0):
+                 v_thresh=-55, t_refrac=2, i_offset=0, v_reset=None,
+                 tau_e=5, tau_i=5, e_e=0, e_i=-70):
+        StandardIF.__init__(self, tau_m, c_m, v_rest, v_thresh, t_refrac, i_offset, v_reset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i)
+        self.set_parameters()
+
+
+class BretteGerstnerIF(LeakySingleCompartmentNeuron):
+    """docstring"""
+
+    def __init__(self, tau_m=20, c_m=1.0, v_rest=-65, v_thresh=-55, t_refrac=2,
+                 i_offset=0, v_spike=0.0, v_reset=-70.6, A=4.0, B=0.0805,
+                 tau_w=144.0, delta=2.0):
         LeakySingleCompartmentNeuron.__init__(self, tau_m, c_m, v_rest, i_offset)
-        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i) 
 
         # insert Brette-Gerstner spike mechanism
         self.adexp = h.AdExpIF(0.5, sec=self)
         self.source = self.adexp
         self.rec = h.NetCon(self.source, None)
 
-        self.parameter_names = ['c_m', 'tau_m', 'v_rest', 'v_thresh', 't_refrac',
-                                'i_offset', 'v_reset', 'tau_e', 'tau_i',
-                                'A', 'B', 'tau_w', 'delta', 'v_spike']
-        if syn_type == 'conductance':
-            self.parameter_names.extend(['e_e', 'e_i'])
-        self.set_parameters(locals())
+        local_params = locals()
+        for name in ('v_thresh', 't_refrac', 'v_reset',
+                     'A', 'B', 'tau_w', 'delta', 'v_spike'):
+            self.parameters[name] = local_params[name]
+
         self.w_init = None
 
     v_thresh = _new_property('adexp', 'vthresh')
@@ -297,6 +305,20 @@ class BretteGerstnerIF(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin)
         self.adexp.w = self.w_init
 
 
+class BretteGerstnerIFStandardReceptors(BretteGerstnerIF, StandardReceptorTypesMixin):
+    """docstring"""
+
+    def __init__(self, syn_type, syn_shape, tau_m=20, c_m=1.0, v_rest=-65,
+                 v_thresh=-55, t_refrac=2, i_offset=0,
+                 tau_e=5, tau_i=5, e_e=0, e_i=-70,
+                 v_spike=0.0, v_reset=-70.6, A=4.0, B=0.0805, tau_w=144.0,
+                 delta=2.0):
+        BretteGerstnerIF.__init__(self, tau_m, c_m, v_rest, v_thresh, t_refrac,
+                                  i_offset, v_spike, v_reset, A, B, tau_w, delta)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i) 
+        self.set_parameters()
+
+
 class Izhikevich_(SingleCompartmentNeuron):
     """docstring"""
 
@@ -314,8 +336,10 @@ class Izhikevich_(SingleCompartmentNeuron):
                             sec=self)
         self.excitatory = self.inhibitory = self.source
 
-        self.parameter_names = ['a_', 'b', 'c', 'd', 'i_offset']
-        self.set_parameters(locals())
+        local_params = locals()
+        for name in ('a_', 'b', 'c', 'd'):
+            self.parameters[name] = local_params[name]
+        self.set_parameters()
         self.u_init = None
 
     a_ = _new_property('izh', 'a')
@@ -335,7 +359,7 @@ class Izhikevich_(SingleCompartmentNeuron):
         self.izh.u = self.u_init
 
 
-class GsfaGrrIF(StandardIF):
+class GsfaGrrIF(StandardIF, StandardReceptorTypesMixin):
     """docstring"""
 
     def __init__(self, syn_type, syn_shape, tau_m=10.0, c_m=1.0, v_rest=-70.0,
@@ -345,20 +369,18 @@ class GsfaGrrIF(StandardIF):
                  e_rr=-70.0, e_sfa=-70.0,
                  tau_rr=1.97, tau_sfa=110.0):
 
-        StandardIF.__init__(self, syn_type, syn_shape, tau_m, c_m, v_rest,
-                            v_thresh, t_refrac, i_offset, v_reset,
-                            tau_e, tau_i, e_e, e_i)
+        StandardIF.__init__(self, tau_m, c_m, v_rest,
+                            v_thresh, t_refrac, i_offset, v_reset)
+        StandardReceptorTypesMixin.__init__(self, syn_type, syn_shape, tau_e, tau_i, e_e, e_i)
 
         # insert GsfaGrr mechanism
         self.gsfa_grr = h.GsfaGrr(0.5, sec=self)
         self.v_thresh = v_thresh
 
-        self.parameter_names = ['c_m', 'tau_m', 'v_rest', 'v_thresh', 'v_reset',
-                                't_refrac', 'tau_e', 'tau_i', 'i_offset',
-                                'e_rr', 'e_sfa', 'q_rr', 'q_sfa', 'tau_rr', 'tau_sfa']
-        if syn_type == 'conductance':
-            self.parameter_names.extend(['e_e', 'e_i'])
-        self.set_parameters(locals())
+        local_params = locals()
+        for name in ('e_rr', 'e_sfa', 'q_rr', 'q_sfa', 'tau_rr', 'tau_sfa'):
+            self.parameters[name] = local_params[name]
+        self.set_parameters()
 
     q_sfa = _new_property('gsfa_grr', 'q_s')
     q_rr = _new_property('gsfa_grr', 'q_r')
@@ -398,12 +420,15 @@ class SingleCompartmentTraub(SingleCompartmentNeuron, StandardReceptorTypesMixin
         self.insert('k_ion')
         self.insert('na_ion')
         self.insert('hh_traub')
-        self.parameter_names = ['c_m', 'e_leak', 'i_offset', 'tau_e',
-                                'tau_i', 'gbar_Na', 'gbar_K', 'g_leak', 'ena',
-                                'ek', 'v_offset']
-        if syn_type == 'conductance':
-            self.parameter_names.extend(['e_e', 'e_i'])
-        self.set_parameters(locals())
+        
+        parameter_names = ['e_leak', 'tau_e',
+                           'tau_i', 'gbar_Na', 'gbar_K', 'g_leak', 'ena',
+                           'ek', 'v_offset']
+        local_params = locals()
+        for name in parameter_names:
+            self.parameters[name] = local_params[name]
+        self.set_parameters()
+        
         self.v_init = e_leak  # default value
 
     # not sure ena and ek are handled correctly
@@ -452,14 +477,14 @@ class GIFNeuron(LeakySingleCompartmentNeuron, StandardReceptorTypesMixin):
         self.source = self.gif_fun
         self.rec = h.NetCon(self.source, None)
 
-        self.parameter_names = ['c_m', 'tau_m', 'v_rest', 't_refrac',
-                                'i_offset', 'v_reset', 'tau_e', 'tau_i',
-                                'vt_star', 'dV', 'lambda0',
-                                'tau_eta', 'a_eta',
-                                'tau_gamma', 'a_gamma']
-        if syn_type == 'conductance':
-            self.parameter_names.extend(['e_e', 'e_i'])
-        self.set_parameters(locals())
+        parameter_names = ['t_refrac', 'v_reset', 'tau_e', 'tau_i',
+                           'vt_star', 'dV', 'lambda0', 'tau_eta', 'a_eta',
+                           'tau_gamma', 'a_gamma']
+
+        local_params = locals()
+        for name in parameter_names:
+            self.parameters[name] = local_params[name]
+        self.set_parameters()
 
     def __set_tau_eta(self, value):
         self.gif_fun.tau_eta1, self.gif_fun.tau_eta2, self.gif_fun.tau_eta3 = value.value
