@@ -27,10 +27,12 @@ from pyNN.neuron.standardmodels.electrodes import *
 from pyNN.neuron.populations import Population, PopulationView, Assembly
 from pyNN.neuron.projections import Projection
 from pyNN.neuron.cells import NativeCellType
-try:
-    from . import nineml
-except ImportError:
-    pass  # nineml is an optional dependency
+from pyNN.neuron.synapses import NativeSynapseType
+#try:
+#    from . import nineml
+#except ImportError:
+#    pass  # nineml is an optional dependency
+from .nineml import nineml_cell_type, nineml_synapse_type
 
 import logging
 logger = logging.getLogger("PyNN")

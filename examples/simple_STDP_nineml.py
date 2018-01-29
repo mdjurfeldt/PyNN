@@ -32,6 +32,8 @@ from quantities import ms
 from pyNN.utility import get_simulator, init_logging, normalized_filename
 from pyNN.utility.plotting import DataTable
 from pyNN.parameters import Sequence
+from nineml import units as un, user as ul, abstraction as al
+
 
 
 # === Parameters ============================================================
@@ -94,14 +96,63 @@ p3 = sim.Population(1, sim.SpikeSourceArray(spike_times=numpy.arange(firing_peri
 
 # we set the initial weights to be very small, to avoid perturbing the firing times of the
 # postsynaptic neurons
-stdp_model = sim.STDPMechanism(
-                timing_dependence=sim.SpikePairRule(tau_plus=20.0, tau_minus=20.0,
-                                                    A_plus=0.01, A_minus=0.012),
-                weight_dependence=sim.AdditiveWeightDependence(w_min=0, w_max=0.0000001),
-                weight=0.00000005,
-                delay=delay,
-                dendritic_delay_fraction=float(options.dendritic_delay_fraction))
-print(stdp_model.possible_models)
+
+def create_stdp_synapse():
+    dyn = al.Dynamics(
+        name="StdpSongAbbott",
+        parameters=[
+            al.Parameter(name='tauLTP', dimension=un.time),
+            al.Parameter(name='aLTP', dimension=un.dimensionless),
+            al.Parameter(name='tauLTD', dimension=un.time),
+            al.Parameter(name='aLTD', dimension=un.dimensionless),
+            al.Parameter(name='wmax', dimension=un.dimensionless),
+            al.Parameter(name='wmin', dimension=un.dimensionless)],
+        analog_ports=[
+            al.AnalogSendPort(dimension=un.dimensionless, name="wsyn")],
+        event_ports=[
+            al.EventReceivePort(name="presynaptic_spike"),
+            al.EventReceivePort(name="postsynaptic_spike")],
+        state_variables=[
+            al.StateVariable(name='tlast_post', dimension=un.time),
+            al.StateVariable(name='tlast_pre', dimension=un.time),
+            al.StateVariable(name='deltaw', dimension=un.dimensionless),
+            al.StateVariable(name='M', dimension=un.dimensionless),
+            al.StateVariable(name='P', dimension=un.dimensionless),
+            al.StateVariable(name='wsyn', dimension=un.dimensionless)],
+        regimes=[
+            al.Regime(
+                name="sole",
+                transitions=[
+                    al.On('presynaptic_spike',
+                          do=[
+                              al.StateAssignment('P', 'P * exp((tlast_pre - t)/tauLTP) + aLTP'),
+                              al.StateAssignment('tlast_pre', 't'),
+                              al.StateAssignment('deltaw', 'wmax * M * exp((tlast_post - t)/tauLTD)'),
+                              al.StateAssignment('wsyn', 'wsyn + deltaw')
+                          ]),
+                    al.On('postsynaptic_spike',
+                          do=[
+                              al.StateAssignment('M', 'M * exp((tlast_post - t)/tauLTD) - aLTD'),
+                              al.StateAssignment('tlast_post', 't'),
+                              al.StateAssignment('deltaw', 'wmax * P * exp((tlast_pre - t)/tauLTP)'),
+                              al.StateAssignment('wsyn', 'wsyn + deltaw')
+                          ]),
+                    al.On('wsyn > wmax',
+                          do=[al.StateAssignment('wsyn', 'wmax')]),
+                    al.On('wsyn < wmin',
+                          do=[al.StateAssignment('wsyn', 'wmin')])
+                ])])
+    return dyn
+
+MySTDP = sim.nineml_synapse_type('StdpSongAbbott', create_stdp_synapse())
+
+stdp_model = MySTDP(tauLTP=20.0, tauLTD=20.0,
+                    aLTP=0.01, aLTD=0.012,
+                    wmin=0, wmax=0.0000001,
+                    weight=0.00000005,
+                    delay=delay,
+                    dendritic_delay_fraction=float(options.dendritic_delay_fraction))
+
 connections = sim.Projection(p1, p2, sim.AllToAllConnector(), stdp_model)
 
 # the connection weight from the driver neuron is very strong, to ensure the
@@ -146,7 +197,7 @@ sim.run(t_stop, callbacks=[weight_recorder])
 
 # === Save the results, optionally plot a figure =============================
 
-filename = normalized_filename("Results", "simple_stdp", "pkl", options.simulator)
+filename = normalized_filename("Results", "simple_stdp_nineml", "pkl", options.simulator)
 p2.write_data(filename, annotations={'script_name': __file__})
 
 presynaptic_data = p1.get_data().segments[0]
@@ -189,7 +240,7 @@ if options.plot_figure:
               ylim=(0.9 * final_weights.min(), 1.1 * final_weights.max()),
               xlabel="t_post - t_pre (ms)", ylabel="Final weight (nA)",
               show_fit=options.fit_curve),
-        title="Simple STDP example",
+        title="Simple STDP example from NineML",
         annotations="Simulated with %s" % options.simulator.upper()
     ).save(figure_filename)
     print(figure_filename)

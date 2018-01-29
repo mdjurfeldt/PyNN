@@ -138,5 +138,55 @@ If your model relies on other NMODL mechanisms, call the
 containing the :file:`.mod` files.
 
 
+Using native synaptic plasticity models
+=======================================
+
+A native NEURON synaptic plasticity model should be implemented in NMODL using the "weight adjuster"
+approach. The mechanism should be a ``POINT_PROCESS`` which defines a ``POINTER wsyn``.
+This mechanism will receive ``NetCon``s from both the presynaptic and postsynaptic neurons
+(at least for the common case where the mechanism depends on post-synaptic spike times
+but not on state variables of the postsynaptic cell such as the membrane potential.
+The latter scenario is possible, but is not documented here.) 
+The ``wsyn`` pointer will be connected to the weight variable of the post-synaptic response mechanism.
+See the :file:`pyNN/neuron/nmodl` directory for some examples of such mechanisms.
+
+Call the :func:`~pyNN.neuron.load_mechanisms` function with the path to the directory
+containing the :file:`.mod` file.
+
+For each synaptic plasticity model you must also define a synapse type class:
+
+.. codeblock:: python
+
+    from pyNN.neuron import NativeSynapseType
+    from pyNN.neuron.simulator import Connection
+
+    class MySTDP(NativeSynapseType):
+        default_parameters = {
+            "weight": 0.0, "delay": None,
+            "tauLTP": 20.0, "tauLTD": 20.0,
+            "aLTP": 0.01, "aLTD": 0.012,
+            "wmin": 0, "wmax": 0.0000001,
+            "dendritic_delay_fraction": 1.0
+        }
+        model = "MySTDPMechanism"  # this is the POINT_PROCESS name
+        connection_type = Connection
+        presynaptic_type = None
+        postsynaptic_variable = "spikes"
+
+The parameters "weight", "delay" and "dendritic_delay_fraction" are obligatory,
+and will be handled by PyNN. All other parameters will be passed on to the NMODL mechanism.
+
+It is now straightforward to use this synapse type in PyNN:
+
+.. codeblock:: python
+
+    from pyNN.neuron import setup, run, Population, Projection, AllToAllConnector, StaticSynapse
+    setup()
+    p1 = Population(10, sim.IF_cond_exp())
+    syn = MySTDP(weight=0.01, delay=0.5, wmax=0.02)
+    prj = Projection(p1, p1, AllToAllConnector(), syn, receptor_type='excitatory')
+    run(100.0)
+
+
 .. _`CVode documentation`: http://www.neuron.yale.edu/neuron/static/docs/help/neuron/neuron/classes/cvode.html
 .. _nrnutils: https://pypi.python.org/pypi/nrnutils/

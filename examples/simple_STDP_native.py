@@ -94,14 +94,32 @@ p3 = sim.Population(1, sim.SpikeSourceArray(spike_times=numpy.arange(firing_peri
 
 # we set the initial weights to be very small, to avoid perturbing the firing times of the
 # postsynaptic neurons
-stdp_model = sim.STDPMechanism(
-                timing_dependence=sim.SpikePairRule(tau_plus=20.0, tau_minus=20.0,
-                                                    A_plus=0.01, A_minus=0.012),
-                weight_dependence=sim.AdditiveWeightDependence(w_min=0, w_max=0.0000001),
-                weight=0.00000005,
-                delay=delay,
-                dendritic_delay_fraction=float(options.dendritic_delay_fraction))
-print(stdp_model.possible_models)
+from pyNN.neuron import NativeSynapseType
+from pyNN.neuron.simulator import Connection
+
+class MySTDP(NativeSynapseType):
+    default_parameters = {
+        "weight": 0.0, "delay": None,
+        "tauLTP": 20.0, "tauLTD": 20.0,
+        "aLTP": 0.01, "aLTD": 0.012,
+        "wmin": 0, "wmax": 0.0000001,
+        "dendritic_delay_fraction": 1.0
+    }
+    model = "StdwaSA9ml"
+    connection_type = Connection
+    presynaptic_type = None
+    postsynaptic_variable = "spikes"
+
+# stdp_model = sim.STDPMechanism(
+#                 timing_dependence=sim.SpikePairRule(tau_plus=20.0, tau_minus=20.0,
+#                                                     A_plus=0.01, A_minus=0.012),
+#                 weight_dependence=sim.AdditiveWeightDependence(w_min=0, w_max=0.0000001),
+#                 weight=0.00000005,
+#                 delay=delay,
+#                 dendritic_delay_fraction=float(options.dendritic_delay_fraction))
+stdp_model = MySTDP(weight=0.00000005, delay=delay,
+                    dendritic_delay_fraction=float(options.dendritic_delay_fraction))
+
 connections = sim.Projection(p1, p2, sim.AllToAllConnector(), stdp_model)
 
 # the connection weight from the driver neuron is very strong, to ensure the

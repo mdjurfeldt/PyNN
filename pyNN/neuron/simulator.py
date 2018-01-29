@@ -381,7 +381,7 @@ class Connection(common.Connection):
         mechanism = synapse_type.model
         self.weight_adjuster = getattr(h, mechanism)(0.5)
         if synapse_type.postsynaptic_variable == 'spikes':
-            parameters['allow_update_on_post'] = int(False)  # for compatibility with NEST
+###            parameters['allow_update_on_post'] = int(False)  # for compatibility with NEST
             self.ddf = parameters.pop('dendritic_delay_fraction')
             # If ddf=1, the synaptic delay
             # `d` is considered to occur entirely in the post-synaptic
@@ -407,6 +407,10 @@ class Connection(common.Connection):
             self.post2wa.delay = self.nc.delay * self.ddf
             self.post2wa.weight[0] = -1
             self.pre2wa.weight[0] = 1
+            if self.pre2wa.wcnt() > 1:  # set channels
+                print("Setting pre- and post-synaptic event channels")
+                self.pre2wa.weight[1] = 0
+                self.post2wa.weight[1] = 1
         else:
             self.pre2wa.weight[0] = self.nc.weight[0]
         parameters.pop('x', None)   # for the Tsodyks-Markram model

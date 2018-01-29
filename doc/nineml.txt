@@ -43,16 +43,14 @@ format such as SEDML_
 Using a NineML abstraction layer model in a NEST or NEURON simulation
 =====================================================================
 
-This requires code-generation support for the backend simulator. For NEST, this
-will be built-in to some future release; for NEURON, the nineml2nmodl package
-is required [currently available in the NineML svn, will be released on PyPI at
-some point]. Brian support is also envisaged.
+This requires code-generation support for the backend simulator. 
+For NEST and NEURON, the Pype9 package is required. Brian support is also envisaged.
 
 ::
 
     import pyNN.neuron as sim
     
-    celltype_cls = sim.nineml_celltype(
+    celltype_cls = sim.nineml_cell_type(
                         name="my_neuron_type",
                         neuron_model="iaf.xml",
                         synapse_models={
@@ -72,6 +70,10 @@ some point]. Brian support is also envisaged.
     cells = sim.Population(100, celltype_cls, parameters)
     
     cells.record(("iaf.v", "AMPA.g", "NMDA.g", "GABAA.v"))
+
+::
+
+    synapsetype_cls = sim.nineml_synapse_type("my_stdp.xml")
 
 
 Simulating an entire NineML model with NEST or NEURON
