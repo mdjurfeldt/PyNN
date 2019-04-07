@@ -203,10 +203,6 @@ class ACSource(NeuronCurrentSource, electrodes.ACSource):
     _is_playable = True
     _is_computed = True
 
-    def __init__(self, **parameters):
-        NeuronCurrentSource.__init__(self, **parameters)
-        self._generate()
-
     def _generate(self):
         # Not efficient at all... Is there a way to have those vectors computed on the fly ?
         # Otherwise should have a buffer mechanism
@@ -230,10 +226,6 @@ class NoisyCurrentSource(NeuronCurrentSource, electrodes.NoisyCurrentSource):
 
     _is_playable = True
     _is_computed = True
-
-    def __init__(self, **parameters):
-        NeuronCurrentSource.__init__(self, **parameters)
-        self._generate()
 
     def _generate(self):
         ## Not efficient at all... Is there a way to have those vectors computed on the fly ?
