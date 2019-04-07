@@ -221,7 +221,8 @@ class NoisyCurrentSource(NeuronCurrentSource, electrodes.NoisyCurrentSource):
         ('start', 'start'),
         ('stop',  'stop'),
         ('stdev', 'stdev'),
-        ('dt',    'dt')
+        ('dt',    'dt'),
+        ('rng',   'rng')
     )
 
     _is_playable = True
@@ -232,5 +233,7 @@ class NoisyCurrentSource(NeuronCurrentSource, electrodes.NoisyCurrentSource):
         ## Otherwise should have a buffer mechanism
         self.times = numpy.arange(self.start, self.stop, max(self.dt, simulator.state.dt))
         self.times = numpy.append(self.times, self.stop)
-        self.amplitudes = self.mean + self.stdev * numpy.random.randn(len(self.times))
+        self.amplitudes = self.rng.next(n=self.times.size,
+                                        distribution="normal",
+                                        parameters={"mu": self.mean, "sigma": self.stdev})
         self.amplitudes[-1] = 0.0

@@ -8,6 +8,7 @@ standard current source models.
 
 from pyNN.standardmodels import StandardCurrentSource
 from pyNN.parameters import Sequence
+from pyNN.random import NumpyRNG
 
 
 class DCSource(StandardCurrentSource):
@@ -111,5 +112,6 @@ class NoisyCurrentSource(StandardCurrentSource):
         'stdev': 1.0,
         'start': 0.0,
         'stop':  1e12,
-        'dt':    0.1
+        'dt':    0.1,
+        'rng':   NumpyRNG(seed=9834564)  # probably need a global default RNG
     }

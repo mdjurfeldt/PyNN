@@ -16,7 +16,6 @@ class NestCurrentSource(BaseCurrentSource):
     """Base class for a nest source of current to be injected into a neuron."""
 
     def __init__(self, **parameters):
-        self._device = nest.Create(self.nest_name)
         self.cell_list = []
         self.parameter_space = ParameterSpace(self.default_parameters,
                                               self.get_schema(),
@@ -26,6 +25,7 @@ class NestCurrentSource(BaseCurrentSource):
 
         self.min_delay = state.min_delay
         self.timestep = state.dt  # NoisyCurrentSource has a parameter called "dt", so use "timestep" here
+        self._device = nest.Create(self.nest_name)
 
     def inject_into(self, cells):
         for id in cells:

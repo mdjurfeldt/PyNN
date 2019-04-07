@@ -23,6 +23,7 @@ optional arguments:
 """
 
 from pyNN.utility import get_simulator, normalized_filename
+from pyNN.random import NumpyRNG
 
 # === Configure the simulator ================================================
 
@@ -41,7 +42,7 @@ current_sources = [sim.DCSource(amplitude=0.5, start=50.0, stop=400.0),
                    sim.ACSource(start=50.0, stop=450.0, amplitude=0.2,
                                 offset=0.1, frequency=10.0, phase=180.0),
                    sim.NoisyCurrentSource(mean=0.5, stdev=0.2, start=50.0,
-                                          stop=450.0, dt=1.0)]
+                                          stop=450.0, dt=1.0, rng=NumpyRNG(seed=847564))]
 
 for cell, current_source in zip(cells, current_sources):
     cell.inject(current_source)

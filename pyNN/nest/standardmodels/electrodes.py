@@ -20,6 +20,7 @@ from pyNN.common import Population, PopulationView, Assembly
 from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.nest.simulator import state
 from pyNN.nest.electrodes import NestCurrentSource
+from pyNN.random import NativeRNG
 
 
 class NestStandardCurrentSource(NestCurrentSource, StandardCurrentSource):
@@ -110,7 +111,7 @@ class NestStandardCurrentSource(NestCurrentSource, StandardCurrentSource):
                 assert isinstance(value, Sequence)
                 step_times = parameters["amplitude_times"].value
                 step_amplitudes = parameters["amplitude_values"].value
-                
+
                 step_times, step_amplitudes = self._check_step_times(step_times, step_amplitudes, self.timestep)
                 parameters["amplitude_times"].value = step_times
                 parameters["amplitude_values"].value = step_amplitudes
@@ -178,6 +179,34 @@ class NoisyCurrentSource(NestStandardCurrentSource, electrodes.NoisyCurrentSourc
         ('start', 'start'),
         ('stop',  'stop'),
         ('stdev', 'std', 1000.),
-        ('dt',    'dt')
+        ('dt',    'dt',),
+        ('rng',   'rng')
     )
-    nest_name = 'noise_generator'
+
+    @property
+    def nest_name(self):
+        if isinstance(self.parameter_space["rng"], NativeRNG):
+            return 'noise_generator'
+        else:
+            return 'step_current_generator'
+
+    def set_native_parameters(self, parameters):
+        if self.nest_name == "noise_generator":
+            NestStandardCurrentSource.set_native_parameters(self, parameters)
+        else:
+            parameters.evaluate(simplify=True)
+            for key, value in parameters.items():
+                object.__setattr__(self, key, value)
+            times = self._delay_correction(
+                numpy.arange(parameters["start"],
+                             parameters["stop"],
+                             max(parameters["dt"], state.dt))
+            )
+            times = numpy.append(times, parameters["stop"])
+            amplitudes = self.rng.next(n=times.size,
+                                       distribution="normal",
+                                       parameters={"mu": parameters["mean"],
+                                                   "sigma": parameters["std"]})
+            amplitudes[-1] = 0.0
+            nest.SetStatus(self._device, {'amplitude_values': amplitudes,
+                                          'amplitude_times': times})

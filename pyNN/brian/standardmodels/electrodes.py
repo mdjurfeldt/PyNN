@@ -207,7 +207,8 @@ class NoisyCurrentSource(BrianCurrentSource, electrodes.NoisyCurrentSource):
         ('start', 'start', ms),
         ('stop', 'stop', ms),
         ('stdev', 'stdev', nA),
-        ('dt', 'dt', ms)
+        ('dt', 'dt', ms),
+        ('rng', 'rng')
     )
     _is_computed = True
     _is_playable = True
@@ -222,4 +223,6 @@ class NoisyCurrentSource(BrianCurrentSource, electrodes.NoisyCurrentSource):
         self.times = numpy.append(self.times, self.stop)
 
     def _compute(self, time):
-        return self.mean + self.stdev * numpy.random.randn()
+        return self.rng.next(n=1,
+                             distribution="normal",
+                             parameters={"mu": self.mean, "sigma": self.stdev})
