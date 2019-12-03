@@ -17,9 +17,10 @@ except NameError:  # Python 3
     xrange = range
 from pyNN import common, errors
 from pyNN.space import Space
-from pyNN.parameters import simplify
 from . import simulator
 from pyNN.random import RandomDistribution
+from pyNN.standardmodels import StandardSynapseType
+from pyNN.parameters import ParameterSpace, simplify
 from .standardmodels.synapses import StaticSynapse
 from .conversion import make_sli_compatible
 
@@ -111,8 +112,8 @@ class Projection(common.Projection):
             else:
                 raise NotImplementedError()
             syn_params.update({'tau_psc': nest.GetStatus([self.nest_connections[0,1]], param_name)})
-
-
+           
+                
         syn_params.update({'synapse_label': self.nest_synapse_label})
         nest.Connect(self.pre.all_cells.astype(int).tolist(),
                      self.post.all_cells.astype(int).tolist(),
@@ -120,7 +121,7 @@ class Projection(common.Projection):
         self._simulator.state.stale_connection_cache = True
         self._sources = [cid[0] for cid in nest.GetConnections(synapse_model=self.nest_synapse_model,
                                                                synapse_label=self.nest_synapse_label)]
-
+    
     def _identify_common_synapse_properties(self):
         """
         Use the connection between the sample indices to distinguish
@@ -199,12 +200,12 @@ class Projection(common.Projection):
         connection_parameters.pop('w_min_always_zero_in_NEST', None)
 
         # Create connections and set parameters
-        try:
+            try:
             # nest.Connect expects a 2D array
-            if not numpy.isscalar(weights):
-                weights = numpy.array([weights])
-            if not numpy.isscalar(delays):
-                delays = numpy.array([delays])
+                if not numpy.isscalar(weights):
+                    weights = numpy.array([weights])
+                if not numpy.isscalar(delays):
+                    delays = numpy.array([delays])
             syn_dict.update({'weight': weights, 'delay': delays})
 
             if postsynaptic_cell.celltype.standard_receptor_type:
@@ -268,11 +269,11 @@ class Projection(common.Projection):
                     if name in self._common_synapse_property_names:
                         self._set_common_synapse_property(name, value)
 
-        except nest.kernel.NESTError as e:
-            errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
-                        e, presynaptic_cells, postsynaptic_cell,
-                        weights, delays, self.nest_synapse_model)
-            raise errors.ConnectionError(errmsg)
+            except nest.kernel.NESTError as e:
+                errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
+                            e, presynaptic_cells, postsynaptic_cell,
+                            weights, delays, self.nest_synapse_model)
+                raise errors.ConnectionError(errmsg)
 
         # Reset the caching of the connection list, since this will have to be recalculated
         self._connections = None
@@ -335,7 +336,7 @@ class Projection(common.Projection):
             value1 = value
         self._common_synapse_properties[name] = value1
         # we delay make_sli_compatible until this late stage so that we can
-        # distinguish "parameter is an array consisting of scalar values"
+        # distinguish "parameter is an array consisting of scalar values" 
         # (one value per connection) from
         # "parameter is a scalar value containing an array"
         # (one value for the entire projection)
@@ -373,55 +374,32 @@ class Projection(common.Projection):
     #        file.write(lines, {'pre' : self.pre.label, 'post' : self.post.label})
     #        file.close()
 
-    def _get_attributes_as_list(self, names):
-        nest_names = []
-        for name in names:
-            if name == 'presynaptic_index':
-                nest_names.append('source')
-            elif name == 'postsynaptic_index':
-                nest_names.append('target')
+    def _get_parameter_space(self, attribute_names, with_address=True):
+        if isinstance(self.synapse_type, StandardSynapseType):
+            computed_parameters = self.synapse_type.computed_parameters()
+            if any(name in computed_parameters for name in attribute_names):
+                # need to get all native parameters to compute final values
+                nest_names = self.synapse_type.get_native_names()
+                nest_names.remove("w_min_always_zero_in_NEST")
+                nest_names.remove("dendritic_delay_fraction")
+                nest_names.remove("tau_minus")
             else:
-                nest_names.append(name)
-        values = nest.GetStatus(self.nest_connections, nest_names)
-        values = numpy.array(values)  # ought to preserve int type for source, target
-        if 'weight' in names:  # other attributes could also have scale factors - need to use translation mechanisms
-            scale_factors = numpy.ones(len(names))
-            scale_factors[names.index('weight')] = 0.001
-            if self.receptor_type == 'inhibitory' and self.post.conductance_based:
-                scale_factors[names.index('weight')] *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
-            values *= scale_factors
-        if 'presynaptic_index' in names:
-            values[:, names.index('presynaptic_index')] = self.pre.id_to_index(values[:, names.index('presynaptic_index')])
-        if 'postsynaptic_index' in names:
-            values[:, names.index('postsynaptic_index')] = self.post.id_to_index(values[:, names.index('postsynaptic_index')])
-        values = values.tolist()
-        for i in xrange(len(values)):
-            values[i] = tuple(values[i])
-        return values
-
-    def _get_attributes_as_arrays(self, names, multiple_synapses='sum'):
-        multi_synapse_operation = Projection.MULTI_SYNAPSE_OPERATIONS[multiple_synapses]
-        all_values = []
-        for attribute_name in names:
-            if attribute_name[-1] == "s":  # weights --> weight, delays --> delay
-                attribute_name = attribute_name[:-1]
-            value_arr = numpy.nan * numpy.ones((self.pre.size, self.post.size))
-            connection_attributes = nest.GetStatus(self.nest_connections,
-                                                   ('source', 'target', attribute_name))
-            for conn in connection_attributes:
-                # (offset is always 0,0 for connections created with connect())
-                src, tgt, value = conn
-                addr = self.pre.id_to_index(src), self.post.id_to_index(tgt)
-                if numpy.isnan(value_arr[addr]):
-                    value_arr[addr] = value
-                else:
-                    value_arr[addr] = multi_synapse_operation(value_arr[addr], value)
-            if attribute_name == 'weight':
-                value_arr *= 0.001
-                if self.receptor_type == 'inhibitory' and self.post.conductance_based:
-                    value_arr *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
-            all_values.append(value_arr)
-        return all_values
+                nest_names = self.synapse_type.get_native_names(*attribute_names)
+        # todo: get tau_minus from post-synaptic neurons if needed
+        status_data = numpy.array(nest.GetStatus(self.nest_connections, nest_names))
+        native_attributes = ParameterSpace({
+            name: column
+            for name, column in zip(nest_names, status_data.T)
+        }, shape=(len(self),))
+        attributes = self.synapse_type.reverse_translate(native_attributes)
+        attributes.evaluate()
+        if with_address:
+            sources, targets = numpy.array(nest.GetStatus(self.nest_connections, ["source", "target"])).T
+            attributes["presynaptic_index"] = numpy.array(sources) - self.pre.first_id
+            attributes["postsynaptic_index"] = numpy.array(targets) - self.post.first_id
+        if 'weight' in attributes and self.receptor_type == 'inhibitory' and self.post.conductance_based:
+            attributes["weight"] *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
+        return attributes
 
     def _set_initial_value_array(self, variable, value):
         local_value = value.evaluate(simplify=True)

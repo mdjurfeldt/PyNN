@@ -68,6 +68,28 @@ def issue672(sim):
     assert_array_equal(wA, wB)
 
 
+@register()
+def update_synaptic_plasticity_parameters(sim):
+    sim.setup()
+    p1 = sim.Population(3, sim.IF_cond_exp(), label="presynaptic")
+    p2 = sim.Population(2, sim.IF_cond_exp(), label="postsynaptic")
+
+    stdp_model = sim.STDPMechanism(
+        timing_dependence=sim.SpikePairRule(tau_plus=20.0, tau_minus=20.0,
+                                            A_plus=0.011, A_minus=0.012),
+        weight_dependence=sim.AdditiveWeightDependence(w_min=0, w_max=0.0000001),
+        weight=0.00000005,
+        delay=0.2)
+    connections = sim.Projection(p1, p2, sim.AllToAllConnector(), stdp_model)
+
+    assert (connections.get("A_minus", format="array") == 0.012).all()
+    connections.set(A_minus=0.013)
+    assert (connections.get("A_minus", format="array") == 0.013).all()
+    connections.set(A_minus=np.array([0.01, 0.011, 0.012, 0.013, 0.014, 0.015]))
+    assert_array_equal(connections.get("A_minus", format="array"),
+                       np.array([[0.01, 0.011], [0.012, 0.013], [0.014, 0.015]]))
+
+
 if __name__ == '__main__':
     from pyNN.utility import get_simulator
     sim, args = get_simulator()

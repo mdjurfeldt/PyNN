@@ -58,13 +58,7 @@ class Projection(object):
             TO DOCUMENT
     """
     _nProj = 0
-    MULTI_SYNAPSE_OPERATIONS = {
-        'last': lambda a, b: b,
-        'first': lambda a, b: a,
-        'sum': operator.iadd,
-        'min': min,
-        'max': max
-    }
+    MULTI_SYNAPSE_OPERATIONS = ['last', 'first', 'sum', 'min', 'max']
 
     def __init__(self, presynaptic_neurons, postsynaptic_neurons, connector,
                  synapse_type=None, source=None, receptor_type=None,
@@ -176,9 +170,19 @@ class Projection(object):
         # The plan is to add this option back at a later date.
 
         attributes = self._value_list_to_array(attributes)
-        parameter_space = ParameterSpace(attributes,
-                                         self.synapse_type.get_schema(),
-                                         (self.pre.size, self.post.size))
+
+        parameter_space = None
+        if isinstance(self.synapse_type, StandardSynapseType):
+            computed_parameters = self.synapse_type.computed_parameters()
+            if any(name in computed_parameters for name in attributes):
+                parameter_space = self._get_parameter_space(list(attributes), with_address=False)
+                for key, value in parameter_space.items():  # this should really be done by _get_parameter_space
+                    parameter_space[key] = LazyArray(value)  #, shape=(self.size,))
+                parameter_space.update(**attributes)
+        if parameter_space is None:
+            parameter_space = ParameterSpace(attributes,
+                                             self.synapse_type.get_schema(),
+                                             (self.pre.size, self.post.size))
         parameter_space = self._handle_distance_expressions(parameter_space)
         if isinstance(self.synapse_type, StandardSynapseType):
             parameter_space = self.synapse_type.translate(parameter_space)
@@ -318,13 +322,13 @@ class Projection(object):
             return_single = True
         else:
             return_single = False
-        if isinstance(self.synapse_type, StandardSynapseType):
-            attribute_names = self.synapse_type.get_native_names(*attribute_names)
+
         if format == 'list':
-            names = list(attribute_names)
+            ps = self._get_parameter_space(attribute_names, with_address=with_address)
             if with_address:
-                names = ["presynaptic_index", "postsynaptic_index"] + names
-            values = self._get_attributes_as_list(names)
+                attribute_names = ["presynaptic_index", "postsynaptic_index"] + list(attribute_names)
+            value_array = numpy.vstack([ps[name] for name in attribute_names])
+            values = value_array.T.tolist()
             if gather and self._simulator.state.num_processes > 1:
                 all_values = {self._simulator.state.mpi_rank: values}
                 all_values = recording.gather_dict(all_values, all=(gather == 'all'))
@@ -335,13 +339,15 @@ class Projection(object):
             return values
         elif format == 'array':
             if multiple_synapses not in Projection.MULTI_SYNAPSE_OPERATIONS:
-                raise ValueError("`multiple_synapses` argument must be one of {}".format(list(Projection.MULTI_SYNAPSE_OPERATIONS)))
+                raise ValueError("`multiple_synapses` argument must be one of {}".format(Projection.MULTI_SYNAPSE_OPERATIONS))
             if gather and self._simulator.state.num_processes > 1:
                 # Node 0 is the only one creating a full connection matrix, and returning it (saving memory)
                 # Slaves nodes are returning list of connections, so this may be inconsistent...
-                names = list(attribute_names)
-                names = ["presynaptic_index", "postsynaptic_index"] + names
-                values = self._get_attributes_as_list(names)
+                ps = self._get_parameter_space(attribute_names, with_address=with_address)
+                if with_address:
+                    attribute_names = ["presynaptic_index", "postsynaptic_index"] + list(attribute_names)
+                value_array = numpy.vstack([ps[name] for name in attribute_names])
+                values = value_array.T.tolist()
                 all_values = {self._simulator.state.mpi_rank: values}
                 all_values = recording.gather_dict(all_values, all=(gather == 'all'))
                 if gather == 'all' or self._simulator.state.mpi_rank == 0:
@@ -363,25 +369,50 @@ class Projection(object):
         else:
             raise Exception("format must be 'list' or 'array'")
 
-    def _get_attributes_as_list(self, names):
-        return [c.as_tuple(*names) for c in self.connections]
+    def _get_parameter_space(self, attribute_names, with_address=True):
+        if isinstance(self.synapse_type, StandardSynapseType):
+            computed_parameters = self.synapse_type.computed_parameters()
+            if any(name in computed_parameters for name in attribute_names):
+                # need to get all native parameters to compute final values
+                native_names = self.synapse_type.get_native_names()
+            else:
+                native_names = self.synapse_type.get_native_names(*attribute_names)
+        native_attributes = ParameterSpace({
+            name: numpy.array([getattr(c, name) for c in self.connections])
+            for name in native_names
+        }, shape=(len(self),))
+        attributes = self.synapse_type.reverse_translate(native_attributes)
+        attributes.evaluate()
+        if with_address:
+            attributes["presynaptic_index"] = numpy.array([c.presynaptic_index
+                                                           for c in self.connections])
+            attributes["postsynaptic_index"] = numpy.array([c.postsynaptic_index
+                                                            for c in self.connections])
+        return attributes
 
-    def _get_attributes_as_arrays(self, names, multiple_synapses='sum'):
-        multi_synapse_operation = Projection.MULTI_SYNAPSE_OPERATIONS[multiple_synapses]
-        all_values = []
-        for attribute_name in names:
-            values = numpy.nan * numpy.ones((self.pre.size, self.post.size))
-            if attribute_name[-1] == "s":  # weights --> weight, delays --> delay
-                attribute_name = attribute_name[:-1]
-            for c in self.connections:
-                value = getattr(c, attribute_name)
-                addr = (c.presynaptic_index, c.postsynaptic_index)
-                if numpy.isnan(values[addr]):
-                    values[addr] = value
-                else:
-                    values[addr] = multi_synapse_operation(values[addr], value)
-            all_values.append(values)
-        return all_values
+    def _get_attributes_as_arrays(self, attribute_names, multiple_synapses='sum'):
+        ps = self._get_parameter_space(attribute_names)
+        all_values = {}
+        n = self.pre.size * self.post.size
+        for name in attribute_names:
+            index = ps["presynaptic_index"] * self.post.size + ps["postsynaptic_index"]
+            # todo: extract the following as a standalone function for easier testing
+            values = numpy.nan * numpy.ones((n,))
+            if multiple_synapses == "sum":
+                values[index] = 0.0
+                numpy.add.at(values, index, ps[name])
+            elif multiple_synapses == "min":
+                values[index] = numpy.inf
+                numpy.minimum.at(values, index, ps[name])
+            elif multiple_synapses == "max":
+                values[index] = -numpy.inf
+                numpy.maximum.at(values, index, ps[name])
+            elif multiple_synapses == "last":
+                values[index] = ps[name]
+            elif multiple_synapses == "first":
+                values[index[::-1]] = ps[name]
+            all_values[name] = values.reshape(self.pre.size, self.post.size)
+        return [all_values[name] for name in attribute_names]
 
     @deprecated("get('weight', format, gather)")
     def getWeights(self, format='list', gather=True):
