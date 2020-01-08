@@ -151,8 +151,10 @@ class Projection(common.Projection):
                                               # (see https://github.com/NeuralEnsemble/PyNN/issues/636)
                                               # Will be overwritten below.
                 connection_parameters["Wmax"] *= -1
-        if hasattr(self.post, "celltype") and hasattr(self.post.celltype, "receptor_scale"):  # this is a bit of a hack
-            weights *= self.post.celltype.receptor_scale                                      # needed for the Izhikevich model
+        if hasattr(self.post, "celltype") and hasattr(self.post.celltype, "receptor_scale"):
+            # this is a bit of a hack needed for the Izhikevich and IF_curr_delta models
+            weights *= self.post.celltype.receptor_scale
+
         delays = connection_parameters.pop('delay')
 
         # Create connections, with weights and delays
