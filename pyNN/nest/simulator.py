@@ -143,7 +143,6 @@ class _State(common.control.BaseState):
         self.run(tstop - self.t)
 
     def reset(self):
-        nest.ResetNetwork()
         nest.SetKernelStatus({'time': 0.0})
         for p in self.populations:
             for variable, initial_value in p.initial_values.items():

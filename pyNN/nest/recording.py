@@ -32,15 +32,14 @@ class RecordingDevice(object):
 
     def __init__(self, device_parameters, to_memory=True):
         # to be called at the end of the subclass __init__
-        device_parameters.update(withgid=True, withtime=True)
         if to_memory:
-            device_parameters.update(to_file=False, to_memory=True)
+            self.device.record_to = "memory"
         else:
-            device_parameters.update(to_file=True, to_memory=False)
+            self.device.record_to = "ascii"
         self._all_ids = set([])
         self._connected = False
         simulator.state.recording_devices.append(self)
-        _set_status(self.device, device_parameters)
+        ###_set_status(self.device, device_parameters)  # to fix: what happened to precise_times and precision attributes of spike_detector?
 
     def add_ids(self, new_ids):
         assert not self._connected
@@ -58,7 +57,7 @@ class RecordingDevice(object):
         values = events[nest_variable] * scale_factor  # I'm hoping numpy optimises for the case where scale_factor = 1, otherwise should avoid this multiplication in that case
         data = {}
         recorded_ids = set(ids)
-        
+
         for id in recorded_ids:
             data[id]=[]
 
@@ -433,14 +432,14 @@ class Recorder(recording.Recorder):
         # Maybe we can reset them, rather than create new ones?
         self._multimeter = Multimeter()
         self._spike_detector = SpikeDetector()
-    
+
     def _get_spiketimes(self, ids):
         return self._spike_detector.get_spiketimes(ids)  # hugely inefficient - to be optimized later
-    
+
     def _get_all_signals(self, variable, ids, clear=False):
         data = self._multimeter.get_data(variable, ids, clear=clear)
         if len(ids) > 0:
-            return numpy.array([data[i] for i in ids]).T #JACOMMENT: this is very expensive but not sure how to get rid of it 
+            return numpy.array([data[i] for i in ids]).T #JACOMMENT: this is very expensive but not sure how to get rid of it
         else:
             return numpy.array([])
 
