@@ -101,6 +101,16 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
     return cell_parameters
 
 
+def mask_to_slice(mask):
+    if mask.dtype == bool:
+        mask = numpy.where(mask)[0]
+    start = mask[0]
+    diff = numpy.diff(mask)
+    assert numpy.unique(diff).size == 1
+    step = diff[0]
+    return slice(start, None, step)
+
+
 class Population(common.Population, PopulationMixin):
     __doc__ = common.Population.__doc__
     _simulator = simulator
@@ -132,7 +142,7 @@ class Population(common.Population, PopulationMixin):
                                    None,
                                    size=self.size)
         try:
-            self.all_cells = nest.Create(nest_model, self.size, params=params)
+            self.node_collection = nest.Create(nest_model, self.size, params=params)
         except nest.kernel.NESTError as err:
             if "UnknownModelName" in err.args[0] and "cond" in err.args[0]:
                 raise errors.InvalidModelError("%s Have you compiled NEST with the GSL (Gnu Scientific Library)?" % err)
@@ -148,10 +158,11 @@ class Population(common.Population, PopulationMixin):
             self._deferred_parrot_connections = True
             # connecting up the parrot neurons is deferred until we know the value of min_delay
             # which could be 'auto' at this point.
-        self._mask_local = numpy.array(nest.GetStatus(self.all_cells, 'local'))
-        self.all_cells = numpy.array([simulator.ID(gid) for gid in self.all_cells], simulator.ID)
+        self._mask_local = mask_to_slice(numpy.array(self.node_collection.local))
+        self.all_cells = numpy.array([simulator.ID(gid) for gid in self.node_collection.tolist()], simulator.ID)
         for gid in self.all_cells:
             gid.parent = self
+            gid.node_collection = nest.NodeCollection([int(gid)])
         if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
             for gid, source in zip(self.all_cells, self.all_cells_source):
                 gid.source = source
@@ -168,7 +179,7 @@ class Population(common.Population, PopulationMixin):
         else:
             local_values = value._partially_evaluate(self._mask_local, simplify=True)
         try:
-            nest.SetStatus(self.local_cells.tolist(), variable, local_values)
+            nest.SetStatus(self.node_collection[self._mask_local], variable, local_values)
         except nest.kernel.NESTError as e:
             if "Unused dictionary items" in e.args[0]:
                 logger.warning("NEST does not allow setting an initial value for %s" % variable)
