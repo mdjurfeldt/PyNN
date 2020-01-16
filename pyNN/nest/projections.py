@@ -138,7 +138,7 @@ class Projection(common.Projection):
         assert presynaptic_cells.size == presynaptic_indices.size
         assert len(presynaptic_cells) > 0, presynaptic_cells
         syn_dict = {
-            'model': self.nest_synapse_model,
+            'synapse_model': self.nest_synapse_model,
             'synapse_label': self.nest_synapse_label,
         }
 
@@ -174,8 +174,8 @@ class Projection(common.Projection):
                         raise NotImplementedError()
                     syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells.astype(int).tolist())])})
 
-                nest.Connect(presynaptic_cells.astype(int).tolist(),
-                             [int(postsynaptic_cell)],
+                nest.Connect(nest.NodeCollection(presynaptic_cells.astype(int).tolist()),
+                             postsynaptic_cell.node_collection,
                              'all_to_all',
                              syn_dict)
             except nest.kernel.NESTError as e:
@@ -236,7 +236,7 @@ class Projection(common.Projection):
             Use the connection between the sample indices to distinguish
             between local and common synapse properties.
         """
-        sample_connection = nest.GetConnections(source=[int(self._sources[0])],
+        sample_connection = nest.GetConnections(source=self._sources[0].node_collection,
                                                 synapse_model=self.nest_synapse_model,
                                                 synapse_label=self.nest_synapse_label)[:1]
 

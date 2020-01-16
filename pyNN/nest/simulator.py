@@ -179,6 +179,9 @@ class ID(int, common.IDMixin):
         int.__init__(n)
         common.IDMixin.__init__(self)
 
+    @property
+    def local(self):
+        return self.node_collection.local
 
 # --- For implementation of connect() and Connector classes --------------------
 

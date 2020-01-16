@@ -172,10 +172,17 @@ class MapConnector(Connector):
             # we need to iterate over all post-synaptic cells, so we can generate then
             # throw away the random numbers for the non-local nodes.
             logger.debug("Parallel-safe iteration.")
+            if isinstance(projection.post._mask_local, slice):
+                if projection.post._mask_local == slice(0, None, 1):
+                    mask_local = repeat(True)
+                else:
+                    mask_local = (True * numpy.ones((projection.post.size,), bool))[projection.post._mask_local]
+            else:
+                mask_local = projection.post._mask_local
             components = (
                 column_indices,
                 postsynaptic_indices,
-                projection.post._mask_local,
+                mask_local,
                 connection_map_generator())
         else:
             # Otherwise, we only need to iterate over local post-synaptic cells.

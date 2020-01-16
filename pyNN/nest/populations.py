@@ -151,10 +151,10 @@ class Population(common.Population, PopulationMixin):
             raise  # errors.InvalidModelError(err)
         # create parrot neurons if necessary
         if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
-            self.all_cells_source = numpy.array(self.all_cells)        # we put the parrots into all_cells, since this will
+            self.node_collection_source = self.node_collection          # we put the parrots into all_cells, since this will
             parrot_model = simulator.state.spike_precision == "off_grid" and "parrot_neuron_ps" or "parrot_neuron"
-            self.all_cells = nest.Create(parrot_model, self.size)      # be used for connections and recording. all_cells_source
-                                                                       # should be used for setting parameters
+            self.node_collection = nest.Create(parrot_model, self.size) # be used for connections and recording. all_cells_source
+                                                                        # should be used for setting parameters
             self._deferred_parrot_connections = True
             # connecting up the parrot neurons is deferred until we know the value of min_delay
             # which could be 'auto' at this point.
@@ -164,11 +164,11 @@ class Population(common.Population, PopulationMixin):
             gid.parent = self
             gid.node_collection = nest.NodeCollection([int(gid)])
         if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
-            for gid, source in zip(self.all_cells, self.all_cells_source):
+            for gid, source in zip(self.all_cells, self.node_collection_source.tolist()):
                 gid.source = source
 
     def _connect_parrot_neurons(self):
-        nest.Connect(self.all_cells_source, numpy.array(self.all_cells, int), 'one_to_one',
+        nest.Connect(self.node_collection_source, self.node_collection, 'one_to_one',
                      syn_spec={'delay': simulator.state.min_delay})
         self._deferred_parrot_connections = False
 

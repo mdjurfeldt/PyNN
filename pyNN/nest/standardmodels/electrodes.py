@@ -37,9 +37,9 @@ class NestStandardCurrentSource(NestCurrentSource, StandardCurrentSource):
             if id.local and not id.celltype.injectable:
                 raise TypeError("Can't inject current into a spike source.")
         if isinstance(cells, (Population, PopulationView, Assembly)):
-            self.cell_list = [cell for cell in cells]
+            self.cell_list = cells.node_collection  #[cell for cell in cells]
         else:
-            self.cell_list = cells
+            self.cell_list = nest.NodeCollection(cells)
         nest.Connect(self._device, self.cell_list, syn_spec={"delay": state.min_delay})
 
     def _phase_correction(self, start, freq, phase):
@@ -110,7 +110,7 @@ class NestStandardCurrentSource(NestCurrentSource, StandardCurrentSource):
                 assert isinstance(value, Sequence)
                 step_times = parameters["amplitude_times"].value
                 step_amplitudes = parameters["amplitude_values"].value
-                
+
                 step_times, step_amplitudes = self._check_step_times(step_times, step_amplitudes, self.timestep)
                 parameters["amplitude_times"].value = step_times
                 parameters["amplitude_values"].value = step_amplitudes
