@@ -30,18 +30,20 @@ class PopulationMixin(object):
         parameter_space should contain native parameters
         """
         param_dict = _build_params(parameter_space, numpy.where(self._mask_local)[0])
-        ids = self.local_cells.tolist()
         if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
-            ids = [id.source for id in ids]
+            ids = self.node_collection_source[self._mask_local]
+        else:
+            ids = self.node_collection[self._mask_local]
         nest.SetStatus(ids, param_dict)
 
     def _get_parameters(self, *names):
         """
         return a ParameterSpace containing native parameters
         """
-        ids = self.local_cells.tolist()
         if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
-            ids = [id.source for id in ids]
+            ids = self.node_collection_source[self._mask_local]
+        else:
+            ids = self.node_collection[self._mask_local]
 
         if "spike_times" in names:
             parameter_dict = {"spike_times": [Sequence(value) for value in nest.GetStatus(ids, names)]}
@@ -68,6 +70,10 @@ class PopulationView(common.PopulationView, PopulationMixin):
     __doc__ = common.PopulationView.__doc__
     _simulator = simulator
     _assembly_class = Assembly
+
+    @property
+    def node_collection(self):
+        return self.parent.node_collection[self.mask]
 
 
 def _build_params(parameter_space, mask_local, size=None, extra_parameters=None):
@@ -102,6 +108,9 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
 
 
 def mask_to_slice(mask):
+    if mask is True:
+        return slice(None, None, None)
+    mask = numpy.array(mask)
     if mask.dtype == bool:
         mask = numpy.where(mask)[0]
     start = mask[0]
@@ -158,7 +167,7 @@ class Population(common.Population, PopulationMixin):
             self._deferred_parrot_connections = True
             # connecting up the parrot neurons is deferred until we know the value of min_delay
             # which could be 'auto' at this point.
-        self._mask_local = mask_to_slice(numpy.array(self.node_collection.local))
+        self._mask_local = mask_to_slice(self.node_collection.local)
         self.all_cells = numpy.array([simulator.ID(gid) for gid in self.node_collection.tolist()], simulator.ID)
         for gid in self.all_cells:
             gid.parent = self
