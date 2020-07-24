@@ -60,10 +60,21 @@ class PopulationMixin(object):
         ps = ParameterSpace(parameter_dict, shape=(self.local_size,))
         return ps
 
+    @property
+    def local_node_collection(self):
+        return self.node_collection[self._mask_local]
+
 
 class Assembly(common.Assembly):
     __doc__ = common.Assembly.__doc__
     _simulator = simulator
+
+    @property
+    def local_node_collection(self):
+        result = self.populations[0].local_node_collection
+        for p in self.populations[1:]:
+            result += p.local_node_collection
+        return result
 
 
 class PopulationView(common.PopulationView, PopulationMixin):
@@ -74,6 +85,10 @@ class PopulationView(common.PopulationView, PopulationMixin):
     @property
     def node_collection(self):
         return self.parent.node_collection[self.mask]
+
+    @property
+    def node_collection_source(self):
+        return self.parent.node_collection_source[self.mask]
 
 
 def _build_params(parameter_space, mask_local, size=None, extra_parameters=None):
@@ -105,19 +120,6 @@ def _build_params(parameter_space, mask_local, size=None, extra_parameters=None)
             if extra_parameters:
                 D.update(extra_parameters)
     return cell_parameters
-
-
-def mask_to_slice(mask):
-    if mask is True:
-        return slice(None, None, None)
-    mask = numpy.array(mask)
-    if mask.dtype == bool:
-        mask = numpy.where(mask)[0]
-    start = mask[0]
-    diff = numpy.diff(mask)
-    assert numpy.unique(diff).size == 1
-    step = diff[0]
-    return slice(start, None, step)
 
 
 class Population(common.Population, PopulationMixin):
@@ -167,7 +169,10 @@ class Population(common.Population, PopulationMixin):
             self._deferred_parrot_connections = True
             # connecting up the parrot neurons is deferred until we know the value of min_delay
             # which could be 'auto' at this point.
-        self._mask_local = mask_to_slice(self.node_collection.local)
+        if self.node_collection.local is True:
+            self._mask_local = numpy.array([True])
+        else:
+            self._mask_local = numpy.array(self.node_collection.local)
         self.all_cells = numpy.array([simulator.ID(gid) for gid in self.node_collection.tolist()], simulator.ID)
         for gid in self.all_cells:
             gid.parent = self

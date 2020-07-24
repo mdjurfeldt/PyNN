@@ -837,10 +837,7 @@ class PopulationView(BasePopulation):
         self._is_sorted = numpy.all(idx == numpy.arange(len(self.all_cells)))
         self.size = len(self.all_cells)
         self.label = label or "view of '%s' with size %s" % (parent.label, self.size)
-        if isinstance(self.parent._mask_local, slice):
-            self._mask_local = numpy.arange(self.parent.size)[self.parent._mask_local][self.mask]
-        else:
-            self._mask_local = self.parent._mask_local[self.mask]
+        self._mask_local = self.parent._mask_local[self.mask]
         self.local_cells = self.all_cells[self._mask_local]
         self.first_id = numpy.min(self.all_cells)  # only works if we assume all_cells is sorted, otherwise could use min()
         self.last_id = numpy.max(self.all_cells)

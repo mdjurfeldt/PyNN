@@ -34,8 +34,10 @@ August 2006
 
 """
 
+import os
 import socket
 from math import *
+import pyNN
 from pyNN.utility import get_simulator, Timer, ProgressBar, init_logging, normalized_filename
 from pyNN.random import NumpyRNG, RandomDistribution
 
@@ -238,10 +240,13 @@ print("%d Writing data to file..." % node_id)
 
 filename = normalized_filename("Results", "VAbenchmarks_%s_exc" % options.benchmark, "pkl",
                                options.simulator, np)
-exc_cells.write_data(filename,
-                     annotations={'script_name': __file__})
-inh_cells.write_data(filename.replace("exc", "inh"),
-                     annotations={'script_name': __file__})
+annotations = {
+    'script_name': __file__,
+    'pyNN_version': pyNN.__version__
+}
+exc_cells.write_data(filename, annotations=annotations)
+inh_cells.write_data(filename.replace("exc", "inh"), annotations=annotations)
+print(os.path.abspath(filename))
 
 writeCPUTime = timer.diff()
 

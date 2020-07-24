@@ -45,7 +45,7 @@ def plot_hist(panel, hist, bins, width, xlabel=None, ylabel=None,
     if xlabel: panel.set_xlabel(xlabel)
     if ylabel: panel.set_ylabel(ylabel)
     for t, n in zip(bins[:-1], hist):
-        panel.bar(t, n, width=width, color=None)
+        panel.bar(t, n, width=width, fill=False)
     if xmin: panel.set_xlim(xmin=xmin)
     if ymax: panel.set_ylim(ymax=ymax)
     if xticks is not None: panel.set_xticks(xticks)
@@ -69,7 +69,8 @@ def plot_spiketrains(panel, segment, label, hide_axis_labels=False):
     print("plotting spikes for %s" % label)
     for spiketrain in segment.spiketrains:
         y = np.ones_like(spiketrain) * spiketrain.annotations['source_id']
-        panel.plot(spiketrain, y, '.', markersize=0.2)
+        panel.plot(spiketrain, y, marker='o', markersize=0.5, linestyle='None',
+                   markerfacecolor='black', fillstyle='full', markeredgewidth=0)
     if not hide_axis_labels:
         panel.set_ylabel(segment.name)
     #plt.setp(plt.gca().get_xticklabels(), visible=False)
@@ -151,7 +152,7 @@ def plot(datafiles, output_file, sort_by='simulator', annotation=None):
             for name in ("exc", "inh"):
                 if name in block.name.lower():
                     segments[name] = block.segments[0]
-                    
+
         # Plot membrane potential traces
         plot_vm_traces(plt.subplot(gs[0, 2 * k:2 * k + 2]), segments['exc'], label, hide_axis_labels)
 
@@ -182,6 +183,6 @@ def main():
     plot(args.datafiles, output_file=args.output_file,
          sort_by=args.sort, annotation=args.annotation)
 
-    
+
 if __name__ == "__main__":
     main()

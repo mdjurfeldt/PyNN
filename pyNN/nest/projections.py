@@ -46,8 +46,8 @@ class Projection(common.Projection):
                                    space, label)
         self.nest_synapse_model = self.synapse_type._get_nest_synapse_model()
         self.nest_synapse_label = Projection._nProj
-        self.synapse_type._set_tau_minus(self.post.local_cells)
-        self._sources = []
+        self.synapse_type._set_tau_minus(self.post.local_node_collection)
+        self._sources = set()
         self._connections = None
         # This is used to keep track of common synapse properties (to my
         # knowledge they only become apparent once connections are created
@@ -84,11 +84,11 @@ class Projection(common.Projection):
     @property
     def nest_connections(self):
         if self._connections is None:
-            self._sources = numpy.unique(self._sources)
-            if self._sources.size > 0:
-                self._connections = nest.GetConnections(self._sources.tolist(),
-                                                        synapse_model=self.nest_synapse_model,
-                                                        synapse_label=self.nest_synapse_label)
+            if len(self._sources) > 0:
+                self._connections = nest.GetConnections(
+                    nest.NodeCollection(list(self._sources)),
+                    synapse_model=self.nest_synapse_model,
+                    synapse_label=self.nest_synapse_label)
             else:
                 self._connections = []
         return self._connections
@@ -133,9 +133,9 @@ class Projection(common.Projection):
         TO UPDATE
         """
         #logger.debug("Connecting to index %s from %s with %s" % (postsynaptic_index, presynaptic_indices, connection_parameters))
-        presynaptic_cells = self.pre.all_cells[presynaptic_indices]
+        presynaptic_cells = self.pre.node_collection[presynaptic_indices]
         postsynaptic_cell = self.post[postsynaptic_index]
-        assert presynaptic_cells.size == presynaptic_indices.size
+        assert len(presynaptic_cells) == presynaptic_indices.size
         assert len(presynaptic_cells) > 0, presynaptic_cells
         syn_dict = {
             'synapse_model': self.nest_synapse_model,
@@ -172,9 +172,9 @@ class Projection(common.Projection):
                         param_name = self.post.local_cells[0].celltype.translations['tau_syn_E']['translated_name']
                     else:
                         raise NotImplementedError()
-                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells.astype(int).tolist())])})
+                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells)])})
 
-                nest.Connect(nest.NodeCollection(presynaptic_cells.astype(int).tolist()),
+                nest.Connect(presynaptic_cells,
                              postsynaptic_cell.node_collection,
                              'all_to_all',
                              syn_dict)
@@ -193,13 +193,13 @@ class Projection(common.Projection):
                 syn_dict.update({'weight': w, 'delay': d, 'receptor_type': receptor_type})
                 if 'tsodyks' in self.nest_synapse_model:
                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells.astype(int).tolist())])})
-
+                # to update for NEST 3
                 nest.Connect([pre], [postsynaptic_cell], 'one_to_one', syn_dict)
 
 
         # Book-keeping
         self._connections = None  # reset the caching of the connection list, since this will have to be recalculated
-        self._sources.extend(presynaptic_cells)
+        self._sources.update(presynaptic_cells.tolist())
 
         # Clean the connection parameters
         connection_parameters.pop('tau_minus', None)  # TODO: set tau_minus on the post-synaptic cells
@@ -214,9 +214,9 @@ class Projection(common.Projection):
         # Set connection parameters other than weight and delay
         if connection_parameters:
             #logger.debug(connection_parameters)
-            sort_indices = numpy.argsort(presynaptic_cells)
-            connections = nest.GetConnections(source=numpy.unique(presynaptic_cells.astype(int)).tolist(),
-                                              target=[int(postsynaptic_cell)],
+            ###sort_indices = numpy.argsort(presynaptic_cells)
+            connections = nest.GetConnections(source=presynaptic_cells,
+                                              target=postsynaptic_cell.node_collection,
                                               synapse_model=self.nest_synapse_model,
                                               synapse_label=self.nest_synapse_label)
             for name, value in connection_parameters.items():
@@ -225,7 +225,7 @@ class Projection(common.Projection):
                     #logger.debug("Setting %s=%s for connections %s" % (name, value, connections))
                     if isinstance(value, numpy.ndarray):
                         # the str() is to work around a bug handling unicode names in SetStatus in NEST 2.4.1 when using Python 2
-                        nest.SetStatus(connections, str(name), value[sort_indices].tolist())
+                        nest.SetStatus(connections, str(name), value.tolist())
                     else:
                         nest.SetStatus(connections, str(name), value)
                 else:
@@ -236,9 +236,10 @@ class Projection(common.Projection):
             Use the connection between the sample indices to distinguish
             between local and common synapse properties.
         """
-        sample_connection = nest.GetConnections(source=self._sources[0].node_collection,
-                                                synapse_model=self.nest_synapse_model,
-                                                synapse_label=self.nest_synapse_label)[:1]
+        sample_connection = nest.GetConnections(
+            source=nest.NodeCollection([next(iter(self._sources))]),  # take any source from the set
+            synapse_model=self.nest_synapse_model,
+            synapse_label=self.nest_synapse_label)[:1]
 
         local_parameters = nest.GetStatus(sample_connection)[0].keys()
         all_parameters = nest.GetDefaults(self.nest_synapse_model).keys()
@@ -247,17 +248,17 @@ class Projection(common.Projection):
 
     def _set_attributes(self, parameter_space):
         parameter_space.evaluate(mask=(slice(None), self.post._mask_local))  # only columns for connections that exist on this machine
-        sources = numpy.unique(self._sources).tolist()
+        sources = nest.NodeCollection(numpy.unique(list(self._sources)).tolist())
         if self._common_synapse_property_names is None:
             self._identify_common_synapse_properties()
         for postsynaptic_cell, connection_parameters in zip(self.post.local_cells,
                                                             parameter_space.columns()):
             connections = nest.GetConnections(source=sources,
-                                              target=[postsynaptic_cell],
+                                              target=postsynaptic_cell.node_collection,
                                               synapse_model=self.nest_synapse_model,
                                               synapse_label=self.nest_synapse_label)
             if connections:
-                source_mask = self.pre.id_to_index([x[0] for x in connections])
+                source_mask = self.pre.id_to_index(list(connections.sources()))
                 for name, value in connection_parameters.items():
                     if name == "weight" and self.receptor_type == 'inhibitory' and self.post.conductance_based:
                         value *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
