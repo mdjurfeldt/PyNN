@@ -112,8 +112,8 @@ class Projection(common.Projection):
             else:
                 raise NotImplementedError()
             syn_params.update({'tau_psc': nest.GetStatus([self.nest_connections[0,1]], param_name)})
-           
-                
+
+
         syn_params.update({'synapse_label': self.nest_synapse_label})
         nest.Connect(self.pre.all_cells.astype(int).tolist(),
                      self.post.all_cells.astype(int).tolist(),
@@ -121,7 +121,7 @@ class Projection(common.Projection):
         self._simulator.state.stale_connection_cache = True
         self._sources = [cid[0] for cid in nest.GetConnections(synapse_model=self.nest_synapse_model,
                                                                synapse_label=self.nest_synapse_label)]
-    
+
     def _identify_common_synapse_properties(self):
         """
         Use the connection between the sample indices to distinguish
@@ -200,12 +200,12 @@ class Projection(common.Projection):
         connection_parameters.pop('w_min_always_zero_in_NEST', None)
 
         # Create connections and set parameters
-            try:
+        try:
             # nest.Connect expects a 2D array
-                if not numpy.isscalar(weights):
-                    weights = numpy.array([weights])
-                if not numpy.isscalar(delays):
-                    delays = numpy.array([delays])
+            if not numpy.isscalar(weights):
+                weights = numpy.array([weights])
+            if not numpy.isscalar(delays):
+                delays = numpy.array([delays])
             syn_dict.update({'weight': weights, 'delay': delays})
 
             if postsynaptic_cell.celltype.standard_receptor_type:
@@ -269,11 +269,11 @@ class Projection(common.Projection):
                     if name in self._common_synapse_property_names:
                         self._set_common_synapse_property(name, value)
 
-            except nest.kernel.NESTError as e:
-                errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
-                            e, presynaptic_cells, postsynaptic_cell,
-                            weights, delays, self.nest_synapse_model)
-                raise errors.ConnectionError(errmsg)
+        except nest.kernel.NESTError as e:
+            errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
+                        e, presynaptic_cells, postsynaptic_cell,
+                        weights, delays, self.nest_synapse_model)
+            raise errors.ConnectionError(errmsg)
 
         # Reset the caching of the connection list, since this will have to be recalculated
         self._connections = None
@@ -336,7 +336,7 @@ class Projection(common.Projection):
             value1 = value
         self._common_synapse_properties[name] = value1
         # we delay make_sli_compatible until this late stage so that we can
-        # distinguish "parameter is an array consisting of scalar values" 
+        # distinguish "parameter is an array consisting of scalar values"
         # (one value per connection) from
         # "parameter is a scalar value containing an array"
         # (one value for the entire projection)
@@ -395,8 +395,8 @@ class Projection(common.Projection):
         attributes.evaluate()
         if with_address:
             sources, targets = numpy.array(nest.GetStatus(self.nest_connections, ["source", "target"])).T
-            attributes["presynaptic_index"] = numpy.array(sources) - self.pre.first_id
-            attributes["postsynaptic_index"] = numpy.array(targets) - self.post.first_id
+            attributes["presynaptic_index"] = self.pre.id_to_index(sources)
+            attributes["postsynaptic_index"] = self.post.id_to_index(targets)
         if 'weight' in attributes and self.receptor_type == 'inhibitory' and self.post.conductance_based:
             attributes["weight"] *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
         return attributes

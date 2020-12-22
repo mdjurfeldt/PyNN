@@ -336,6 +336,8 @@ class Projection(object):
                     values = reduce(operator.add, all_values.values())
             if not with_address and return_single:
                 values = [val[0] for val in values]
+            else:
+                values = [tuple(value) for value in values]
             return values
         elif format == 'array':
             if multiple_synapses not in Projection.MULTI_SYNAPSE_OPERATIONS:
