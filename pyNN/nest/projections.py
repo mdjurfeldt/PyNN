@@ -172,7 +172,7 @@ class Projection(common.Projection):
                         param_name = self.post.local_cells[0].celltype.translations['tau_syn_E']['translated_name']
                     else:
                         raise NotImplementedError()
-                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells)])})
+                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus(self.post.node_collection[postsynaptic_index], param_name)[0]] * len(presynaptic_cells)])})
 
                 nest.Connect(presynaptic_cells,
                              postsynaptic_cell.node_collection,
