@@ -67,7 +67,7 @@ class _State(common.control.BaseState):
 
     @property
     def t(self):
-        return max(nest.GetKernelStatus('time') - self.dt, 0.0)  # note that we always simulate one time step past the requested time
+        return max(nest.GetKernelStatus('biological_time') - self.dt, 0.0)  # note that we always simulate one time step past the requested time
 
     dt = nest_property('resolution', float)
 
@@ -134,7 +134,7 @@ class _State(common.control.BaseState):
                 device.connect_to_cells()
                 device._local_files_merged = False
         if not self.running and simtime > 0:
-            ###simtime += self.dt  # we simulate past the real time by one time step, otherwise NEST doesn't give us all the recorded data
+            simtime += self.dt  # we simulate past the real time by one time step, otherwise NEST doesn't give us all the recorded data
             self.running = True
         if simtime > 0:
             nest.Simulate(simtime)
@@ -143,7 +143,7 @@ class _State(common.control.BaseState):
         self.run(tstop - self.t)
 
     def reset(self):
-        nest.SetKernelStatus({'time': 0.0})
+        nest.SetKernelStatus({'biological_time': 0.0})
         for p in self.populations:
             for variable, initial_value in p.initial_values.items():
                 p._set_initial_value_array(variable, initial_value)

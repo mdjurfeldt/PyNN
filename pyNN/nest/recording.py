@@ -86,10 +86,10 @@ class RecordingDevice(object):
 
 
 class SpikeDetector(RecordingDevice):
-    """A wrapper around the NEST spike_detector device"""
+    """A wrapper around the NEST spike_recorder device"""
 
     def __init__(self, to_memory=True):
-        self.device = nest.Create('spike_detector')
+        self.device = nest.Create('spike_recorder')
         device_parameters = {
             "precise_times": True,
             "precision": simulator.state.default_recording_precision
@@ -98,10 +98,11 @@ class SpikeDetector(RecordingDevice):
 
     def connect_to_cells(self):
         assert not self._connected
-        nest.Connect(nest.NodeCollection(list(self._all_ids)),
-                     self.device,
-                     {'rule': 'all_to_all'},
-                     {'delay': simulator.state.min_delay})
+        if len(self._all_ids) > 0:
+            nest.Connect(nest.NodeCollection(list(self._all_ids)),
+                         self.device,
+                         {'rule': 'all_to_all'},
+                         {'delay': simulator.state.min_delay})
         self._connected = True
 
     def get_spiketimes(self, desired_ids):
@@ -135,10 +136,11 @@ class Multimeter(RecordingDevice):
 
     def connect_to_cells(self):
         assert not self._connected
-        nest.Connect(self.device,
-                     nest.NodeCollection(list(self._all_ids)),
-                     {'rule': 'all_to_all'},
-                     {'delay': simulator.state.min_delay})
+        if len(self._all_ids) > 0:
+            nest.Connect(self.device,
+                         nest.NodeCollection(list(self._all_ids)),
+                         {'rule': 'all_to_all'},
+                         {'delay': simulator.state.min_delay})
         self._connected = True
 
     @property

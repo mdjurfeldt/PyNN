@@ -193,7 +193,10 @@ class Population(common.Population, PopulationMixin):
         else:
             local_values = value._partially_evaluate(self._mask_local, simplify=True)
         try:
-            nest.SetStatus(self.node_collection[self._mask_local], variable, local_values)
+            if self._mask_local.dtype == bool and self._mask_local.size == 1 and self._mask_local[0]:
+                nest.SetStatus(self.node_collection, variable, local_values)
+            else:
+                nest.SetStatus(self.node_collection[self._mask_local], variable, local_values)
         except nest.kernel.NESTError as e:
             if "Unused dictionary items" in e.args[0]:
                 logger.warning("NEST does not allow setting an initial value for %s" % variable)
