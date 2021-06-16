@@ -21,11 +21,10 @@ assert 'simulator' not in locals()
 
 class BaseState(object):
     """Base class for simulator _State classes."""
-    
+
     def __init__(self):
         """Initialize the simulator."""
         self.running = False
-        self.t_start = 0
         self.write_on_end = []  # a list of (population, variable, filename) combinations that should be written to file on end()
         self.recorders = set([])
 
@@ -35,7 +34,7 @@ def setup(timestep=DEFAULT_TIMESTEP, min_delay=DEFAULT_MIN_DELAY,
     """
     Initialises/reinitialises the simulator. Any existing network structure is
     destroyed.
-    
+
     `timestep`, `min_delay` and `max_delay` should all be in milliseconds.
 
     `extra_params` contains any keyword arguments that are required by a given
@@ -62,7 +61,7 @@ def build_run(simulator):
     def run_until(time_point, callbacks=None):
         """
         Advance the simulation until `time_point` (in ms).
-        
+
         `callbacks` is an optional list of callables, each of which should
         accept the current time as an argument, and return the next time it
         wishes to be called.
@@ -96,7 +95,7 @@ def build_run(simulator):
     def run(simtime, callbacks=None):
         """
         Advance the simulation by `simtime` ms.
-        
+
         `callbacks` is an optional list of callables, each of which should
         accept the current time as an argument, and return the next time it
         wishes to be called.
@@ -116,7 +115,7 @@ def build_reset(simulator):
     def reset(annotations={}):
         """
         Reset the time to zero, neuron membrane potentials and synaptic weights to
-        their initial values, and begin a new Segment for recorded data. 
+        their initial values, and begin a new Segment for recorded data.
         The network structure is not changed, nor are neuron/synapse parameters,
         nor the specification of which neurons to record from.
         """

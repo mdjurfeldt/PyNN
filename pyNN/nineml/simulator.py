@@ -41,7 +41,6 @@ class State(common.control.BaseState):
         """Reset the state of the current network to time t = 0."""
         self.running = False
         self.t = 0
-        self.t_start = 0
         self.segment_counter += 1
 
 state = State()

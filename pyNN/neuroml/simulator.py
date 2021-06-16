@@ -37,7 +37,7 @@ def _get_nml_doc(reference="PyNN_NeuroML2_Export",reset=False):
     if nml_doc == None or reset:
         nml_doc = neuroml.NeuroMLDocument(id=reference)
         nml_doc.notes = comment%'NeuroML 2'
-        
+
     return nml_doc
 
 
@@ -77,7 +77,7 @@ class State(common.control.BaseState):
         logger.debug("run_until() called with %s"%tstop)
         lems_sim = _get_lems_sim()
         lems_sim.duration = float(tstop)
-        
+
         self.t = tstop
         self.running = True
     def clear(self):
@@ -89,7 +89,6 @@ class State(common.control.BaseState):
         """Reset the state of the current network to time t = 0."""
         self.running = False
         self.t = 0
-        self.t_start = 0
         self.segment_counter += 1
 
 state = State()
