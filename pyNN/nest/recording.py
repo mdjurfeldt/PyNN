@@ -39,7 +39,7 @@ class RecordingDevice(object):
         self._all_ids = set([])
         self._connected = False
         simulator.state.recording_devices.append(self)
-        ###_set_status(self.device, device_parameters)  # to fix: what happened to precise_times and precision attributes of spike_detector?
+        _set_status(self.device, device_parameters)
 
     def add_ids(self, new_ids):
         assert not self._connected
@@ -55,6 +55,9 @@ class RecordingDevice(object):
         events = nest.GetStatus(self.device, 'events')[0]
         ids = events['senders']
         values = events[nest_variable] * scale_factor  # I'm hoping numpy optimises for the case where scale_factor = 1, otherwise should avoid this multiplication in that case
+        if variable == "times":
+            values -= simulator.state._time_offset
+
         data = {}
         recorded_ids = set(ids)
 
@@ -75,13 +78,16 @@ class RecordingDevice(object):
                     self._initial_values[variable] = {}
                 initial_value = self._initial_values[variable].get(int(id),
                                                                    id.get_initial_value(variable))
-                data[int(id)] = [initial_value] + data.get(int(id),[])
+                if simulator.state.segment_counter == 0:
+                    data[int(id)] = [initial_value] + data.get(int(id),[])
+                else:
+                    if len(data[int(id)]) > 0:
+                        data[int(id)][0] = initial_value
                 # if `get_data()` is called in the middle of a simulation, the
                 # value at the last time point will become the initial value for
                 # the next time `get_data()` is called
                 if clear:
                     self._initial_values[variable][int(id)] = data[int(id)][-1]
-
         return data
 
 
@@ -91,8 +97,9 @@ class SpikeDetector(RecordingDevice):
     def __init__(self, to_memory=True):
         self.device = nest.Create('spike_recorder')
         device_parameters = {
-            "precise_times": True,
-            "precision": simulator.state.default_recording_precision
+            # these seem to have disappeared in NEST v3
+            #"precise_times": True,
+            #"precision": simulator.state.default_recording_precision
         }
         super(SpikeDetector, self).__init__(device_parameters, to_memory)
 

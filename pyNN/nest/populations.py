@@ -34,7 +34,7 @@ class PopulationMixin(object):
             ids = self.node_collection_source[self._mask_local]
         else:
             ids = self.node_collection[self._mask_local]
-        nest.SetStatus(ids, param_dict)
+        simulator.state.set_status(ids, param_dict)
 
     def _get_parameters(self, *names):
         """
@@ -186,6 +186,14 @@ class Population(common.Population, PopulationMixin):
                      syn_spec={'delay': simulator.state.min_delay})
         self._deferred_parrot_connections = False
 
+    def _reset(self):
+        # adjust parameters that represent absolute times for the time offset after reset
+        if hasattr(self.celltype, "uses_parrot") and self.celltype.uses_parrot:
+            for name in self.celltype.get_native_names():
+                if name in ("start", "stop", "spike_times"):
+                    value = self.celltype.native_parameters[name]
+                    self._simulator.set_status(self.node_collection, name, value)
+
     def _set_initial_value_array(self, variable, value):
         variable = VARIABLE_MAP.get(variable, variable)
         if isinstance(value.base_value, RandomDistribution) and value.base_value.rng.parallel_safe:
@@ -194,9 +202,9 @@ class Population(common.Population, PopulationMixin):
             local_values = value._partially_evaluate(self._mask_local, simplify=True)
         try:
             if self._mask_local.dtype == bool and self._mask_local.size == 1 and self._mask_local[0]:
-                nest.SetStatus(self.node_collection, variable, local_values)
+                simulator.state.set_status(self.node_collection, variable, local_values)
             else:
-                nest.SetStatus(self.node_collection[self._mask_local], variable, local_values)
+                simulator.state.set_status(self.node_collection[self._mask_local], variable, local_values)
         except nest.kernel.NESTError as e:
             if "Unused dictionary items" in e.args[0]:
                 logger.warning("NEST does not allow setting an initial value for %s" % variable)

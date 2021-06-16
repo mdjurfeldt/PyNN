@@ -64,18 +64,20 @@ class _State(common.control.BaseState):
         self.tempdirs = []
         self.recording_devices = []
         self.populations = []  # needed for reset
+        self.current_sources = []
+        self._time_offset = 0.0
 
     @property
     def t(self):
-        return max(nest.GetKernelStatus('biological_time') - self.dt, 0.0)  # note that we always simulate one time step past the requested time
+        return max(self.t_kernel - self.min_delay - self._time_offset, 0.0)  # note that we always simulate one time step past the requested time
+
+    t_kernel = nest_property("biological_time", float)
 
     dt = nest_property('resolution', float)
 
     threads = nest_property('local_num_threads', int)
 
-    grng_seed = nest_property('grng_seed', int)
-
-    rng_seeds = nest_property('rng_seeds', list)
+    grng_seed = nest_property('rng_seed', int)
 
     @property
     def min_delay(self):
@@ -124,6 +126,45 @@ class _State(common.control.BaseState):
         nest.set_verbosity('M_{}'.format(verbosity.upper()))
     verbosity = property(fset=_set_verbosity)
 
+    def set_status(self, nodes, params, val=None):
+        """
+        Wrapper around nest.SetStatus() to handle time offset
+        """
+        if self._time_offset == 0.0:
+            nest.SetStatus(nodes, params, val=val)
+        elif val is None:
+            if isinstance(params, list):
+                params_copy = []
+                for item in params:
+                    item_copy = {}
+                    for name, value in item.items():
+                        if name in ("start", "stop"):
+                            item_copy[name] = value + self._time_offset
+                        elif name in ("spike_times", "amplitude_times"):
+                            item_copy[name] = [v + self._time_offset for v in value]
+                        else:
+                            item_copy[name] = value
+                    params_copy.append(item_copy)
+            else:
+                params_copy = {}
+                for name, value in params.items():
+                    if name in ("start", "stop"):
+                        params_copy[name] = value + self._time_offset
+                    elif name in ("spike_times", "amplitude_times"):
+                        params_copy[name] = [v + self._time_offset for v in value]
+                    else:
+                        params_copy[name] = value
+            nest.SetStatus(nodes, params_copy)
+        else:
+            name = params
+            # todo: handle case where val is a list
+            if name in ("start", "stop"):
+                nest.SetStatus(nodes, name, val + self._time_offset)
+            elif name in ("spike_times", "amplitude_times"):
+                nest.SetStatus(nodes, name, [v + self._time_offset for v in val])
+            else:
+                nest.SetStatus(nodes, name, val)
+
     def run(self, simtime):
         """Advance the simulation for a certain time."""
         for population in self.populations:
@@ -134,7 +175,7 @@ class _State(common.control.BaseState):
                 device.connect_to_cells()
                 device._local_files_merged = False
         if not self.running and simtime > 0:
-            simtime += self.dt  # we simulate past the real time by one time step, otherwise NEST doesn't give us all the recorded data
+            simtime += self.min_delay  # we simulate past the real time by one min delay, otherwise NEST doesn't give us all the recorded data
             self.running = True
         if simtime > 0:
             nest.Simulate(simtime)
@@ -143,16 +184,26 @@ class _State(common.control.BaseState):
         self.run(tstop - self.t)
 
     def reset(self):
-        nest.SetKernelStatus({'biological_time': 0.0})
+        if self.t > 0:
+            self.run(self.max_delay)  # get spikes and recorded data out of the system
+            for recorder in self.recorders:
+                recorder._clear_simulator()
+
+        self._time_offset = self.t_kernel
+
         for p in self.populations:
             for variable, initial_value in p.initial_values.items():
                 p._set_initial_value_array(variable, initial_value)
+            p._reset()
+        for cs in self.current_sources:
+            cs._reset()
+
         self.running = False
-        self.t_start = 0.0
         self.segment_counter += 1
 
     def clear(self):
         self.populations = []
+        self.current_sources = []
         self.recording_devices = []
         self.recorders = set()
         # clear the sli stack, if this is not done --> memory leak cause the stack increases
@@ -166,6 +217,7 @@ class _State(common.control.BaseState):
         self.tempdirs.append(tempdir)  # append tempdir to tempdirs list
         nest.SetKernelStatus({'data_path': tempdir, })
         self.segment_counter = -1
+        self.running = False
         self.reset()
 
 

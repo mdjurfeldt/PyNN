@@ -291,10 +291,6 @@ class Recorder(object):
                                     source_population=self.population.label,
                                     source_ids=source_ids)
 
-                    # temporary workaround for problem with NEST 3 conversion
-                    # where we get a longer signal_array than expected after reset()
-                    signal = signal.time_slice(t_start, t_stop)
-
                     signal.channel_index = neo.ChannelIndex(
                             index=numpy.arange(source_ids.size),
                             channel_ids=numpy.array([self.population.id_to_index(id) for id in ids]))
