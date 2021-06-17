@@ -128,9 +128,7 @@ def setup(timestep=DEFAULT_TIMESTEP, min_delay=DEFAULT_MIN_DELAY,
         warnings.warn("The setup argument 'rng_seeds_seed' is now 'rng_seed'")
         simulator.state.rng_seed = extra_params['rng_seeds_seed']
     else:
-        rng = NumpyRNG(extra_params.get('rng_seed', 42))
-        n = simulator.state.num_processes * simulator.state.threads
-        simulator.state.rng_seed = rng.next(n, 'uniform_int', {'low': 0, 'high': 100000}).tolist()
+        simulator.state.rng_seed = extra_params.get('rng_seed', 42)
     # set resolution
     simulator.state.dt = timestep
     # Set min_delay and max_delay

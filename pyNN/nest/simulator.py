@@ -77,6 +77,7 @@ class _State(common.control.BaseState):
 
     threads = nest_property('local_num_threads', int)
 
+    rng_seed = nest_property('rng_seed', int)
     grng_seed = nest_property('rng_seed', int)
 
     @property
@@ -261,7 +262,7 @@ class Connection(common.Connection):
     @property
     def source(self):
         """The ID of the pre-synaptic neuron."""
-        src = ID(nest.GetStatus([self.id()], 'source')[0])
+        src = ID(nest.GetStatus(self.id(), 'source')[0])
         src.parent = self.parent.pre
         return src
     presynaptic_cell = source
@@ -269,27 +270,27 @@ class Connection(common.Connection):
     @property
     def target(self):
         """The ID of the post-synaptic neuron."""
-        tgt = ID(nest.GetStatus([self.id()], 'target')[0])
+        tgt = ID(nest.GetStatus(self.id(), 'target')[0])
         tgt.parent = self.parent.post
         return tgt
     postsynaptic_cell = target
 
     def _set_weight(self, w):
-        nest.SetStatus([self.id()], 'weight', w * 1000.0)
+        nest.SetStatus(self.id(), 'weight', w * 1000.0)
 
     def _get_weight(self):
         """Synaptic weight in nA or µS."""
-        w_nA = nest.GetStatus([self.id()], 'weight')[0]
+        w_nA = nest.GetStatus(self.id(), 'weight')[0]
         if self.parent.synapse_type == 'inhibitory' and common.is_conductance(self.target):
             w_nA *= -1  # NEST uses negative values for inhibitory weights, even if these are conductances
         return 0.001 * w_nA
 
     def _set_delay(self, d):
-        nest.SetStatus([self.id()], 'delay', d)
+        nest.SetStatus(self.id(), 'delay', d)
 
     def _get_delay(self):
         """Synaptic delay in ms."""
-        return nest.GetStatus([self.id()], 'delay')[0]
+        return nest.GetStatus(self.id(), 'delay')[0]
 
     weight = property(_get_weight, _set_weight)
     delay = property(_get_delay, _set_delay)
@@ -297,10 +298,10 @@ class Connection(common.Connection):
 
 def generate_synapse_property(name):
     def _get(self):
-        return nest.GetStatus([self.id()], name)[0]
+        return nest.GetStatus(self.id(), name)[0]
 
     def _set(self, val):
-        nest.SetStatus([self.id()], name, val)
+        nest.SetStatus(self.id(), name, val)
     return property(_get, _set)
 
 setattr(Connection, 'U', generate_synapse_property('U'))

@@ -11,6 +11,7 @@ import numpy
 import nest
 import logging
 from itertools import repeat
+from collections import defaultdict
 try:
     xrange
 except NameError:  # Python 3
@@ -31,6 +32,18 @@ def listify(obj):
         return float(obj)  # NEST chokes on numpy's float types
     else:
         return obj
+
+
+def split_array_to_avoid_repeats(arr):
+    assert arr.dtype == int
+    n_sub_arrays = numpy.bincount(arr).max()
+    sub_arrays = [[] for i in range(n_sub_arrays)]
+    sub_array_indices = defaultdict(int)
+    for element in arr:
+        sub_array_index = sub_array_indices[element]
+        sub_arrays[sub_array_index].append(element)
+        sub_array_indices[element] += 1
+    return [numpy.array(subarr) for subarr in sub_arrays]
 
 
 class Projection(common.Projection):
@@ -86,7 +99,7 @@ class Projection(common.Projection):
         if self._connections is None:
             if len(self._sources) > 0:
                 self._connections = nest.GetConnections(
-                    nest.NodeCollection(list(self._sources)),
+                    nest.NodeCollection(sorted(self._sources)),
                     synapse_model=self.nest_synapse_model,
                     synapse_label=self.nest_synapse_label)
             else:
@@ -133,10 +146,21 @@ class Projection(common.Projection):
         TO UPDATE
         """
         #logger.debug("Connecting to index %s from %s with %s" % (postsynaptic_index, presynaptic_indices, connection_parameters))
-        presynaptic_cells = self.pre.node_collection[presynaptic_indices]
+
+        presynaptic_indices.sort()  # needed for NEST
+        try:
+            presynaptic_cell_groups = [self.pre.node_collection[presynaptic_indices]]
+        except ValueError as err:
+            if "All node IDs in a NodeCollection have to be unique" in str(err):
+                if any(hasattr(val, "__len__") for val in connection_parameters.values()):
+                    raise NotImplementedError("Needs re-implementing for NEST v3")
+                presynaptic_index_groups = split_array_to_avoid_repeats(presynaptic_indices)
+                presynaptic_cell_groups = [self.pre.node_collection[i] for i in presynaptic_index_groups]
+            else:
+                raise
         postsynaptic_cell = self.post[postsynaptic_index]
-        assert len(presynaptic_cells) == presynaptic_indices.size
-        assert len(presynaptic_cells) > 0, presynaptic_cells
+        #assert len(presynaptic_cells) == presynaptic_indices.size
+        #assert len(presynaptic_cells) > 0, presynaptic_cells
         syn_dict = {
             'synapse_model': self.nest_synapse_model,
             'synapse_label': self.nest_synapse_label,
@@ -157,49 +181,57 @@ class Projection(common.Projection):
 
         # Create connections, with weights and delays
         # Setting other connection parameters is done afterwards
-        if postsynaptic_cell.celltype.standard_receptor_type:
-            try:
-                if not numpy.isscalar(weights):
-                    weights = numpy.array([weights])
-                if not numpy.isscalar(delays):
-                    delays = numpy.array([delays])
-                syn_dict.update({'weight': weights, 'delay': delays})
+        for presynaptic_cells in presynaptic_cell_groups:
+            if postsynaptic_cell.celltype.standard_receptor_type:
+                try:
+                    if not numpy.isscalar(weights):
+                        weights = numpy.array([weights])
+                    if not numpy.isscalar(delays):
+                        delays = numpy.array([delays])
+                    syn_dict.update({'weight': weights, 'delay': delays})
 
-                if 'tsodyks' in self.nest_synapse_model:
-                    if self.receptor_type == 'inhibitory':
-                        param_name = self.post.local_cells[0].celltype.translations['tau_syn_I']['translated_name']
-                    elif self.receptor_type == 'excitatory':
-                        param_name = self.post.local_cells[0].celltype.translations['tau_syn_E']['translated_name']
-                    else:
-                        raise NotImplementedError()
-                    syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus(self.post.node_collection[postsynaptic_index], param_name)[0]] * len(presynaptic_cells)])})
+                    if 'tsodyks' in self.nest_synapse_model:
+                        if self.receptor_type == 'inhibitory':
+                            param_name = self.post.local_cells[0].celltype.translations['tau_syn_I']['translated_name']
+                        elif self.receptor_type == 'excitatory':
+                            param_name = self.post.local_cells[0].celltype.translations['tau_syn_E']['translated_name']
+                        else:
+                            raise NotImplementedError()
+                        syn_dict.update(
+                            {'tau_psc': numpy.array([[
+                                            nest.GetStatus(self.post.node_collection[postsynaptic_index],
+                                                        param_name)[0]
+                                        ] * len(presynaptic_cells)])})
 
-                nest.Connect(presynaptic_cells,
-                             postsynaptic_cell.node_collection,
-                             'all_to_all',
-                             syn_dict)
-            except nest.kernel.NESTError as e:
-                errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
-                            e, presynaptic_cells, postsynaptic_cell,
-                            weights, delays, self.nest_synapse_model)
-                raise errors.ConnectionError(errmsg)
-        else:
-            receptor_type = postsynaptic_cell.celltype.get_receptor_type(self.receptor_type)
-            if numpy.isscalar(weights):
-                weights = repeat(weights)
-            if numpy.isscalar(delays):
-                delays = repeat(delays)
-            for pre, w, d in zip(presynaptic_cells, weights, delays):
-                syn_dict.update({'weight': w, 'delay': d, 'receptor_type': receptor_type})
-                if 'tsodyks' in self.nest_synapse_model:
-                   syn_dict.update({'tau_psc': numpy.array([[nest.GetStatus([postsynaptic_cell], param_name)[0]] * len(presynaptic_cells.astype(int).tolist())])})
-                # to update for NEST 3
-                nest.Connect([pre], [postsynaptic_cell], 'one_to_one', syn_dict)
+                    nest.Connect(presynaptic_cells,
+                                postsynaptic_cell.node_collection,
+                                'all_to_all',
+                                syn_dict)
+                except nest.kernel.NESTError as e:
+                    errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
+                                e, presynaptic_cells, postsynaptic_cell,
+                                weights, delays, self.nest_synapse_model)
+                    raise errors.ConnectionError(errmsg)
+            else:
+                receptor_type = postsynaptic_cell.celltype.get_receptor_type(self.receptor_type)
+                if numpy.isscalar(weights):
+                    weights = repeat(weights)
+                if numpy.isscalar(delays):
+                    delays = repeat(delays)
+                for pre, w, d in zip(presynaptic_cells, weights, delays):
+                    syn_dict.update({'weight': w, 'delay': d, 'receptor_type': receptor_type})
+                    if 'tsodyks' in self.nest_synapse_model:
+                        syn_dict.update(
+                            {'tau_psc': numpy.array([
+                                            [nest.GetStatus(nest.NodeCollection([postsynaptic_cell]), param_name)[0]
+                                        ] * len(presynaptic_cells.astype(int).tolist())])
+                            })
+                    nest.Connect(pre, nest.NodeCollection([postsynaptic_cell]), 'one_to_one', syn_dict)
 
+            self._sources.update(presynaptic_cells.tolist())
 
         # Book-keeping
         self._connections = None  # reset the caching of the connection list, since this will have to be recalculated
-        self._sources.update(presynaptic_cells.tolist())
 
         # Clean the connection parameters
         connection_parameters.pop('tau_minus', None)  # TODO: set tau_minus on the post-synaptic cells
@@ -213,23 +245,24 @@ class Projection(common.Projection):
 
         # Set connection parameters other than weight and delay
         if connection_parameters:
-            #logger.debug(connection_parameters)
-            ###sort_indices = numpy.argsort(presynaptic_cells)
-            connections = nest.GetConnections(source=presynaptic_cells,
-                                              target=postsynaptic_cell.node_collection,
-                                              synapse_model=self.nest_synapse_model,
-                                              synapse_label=self.nest_synapse_label)
-            for name, value in connection_parameters.items():
-                if name not in self._common_synapse_property_names:
-                    value = make_sli_compatible(value)
-                    #logger.debug("Setting %s=%s for connections %s" % (name, value, connections))
-                    if isinstance(value, numpy.ndarray):
-                        # the str() is to work around a bug handling unicode names in SetStatus in NEST 2.4.1 when using Python 2
-                        nest.SetStatus(connections, str(name), value.tolist())
+            for presynaptic_cells in presynaptic_cell_groups:
+                #logger.debug(connection_parameters)
+                ###sort_indices = numpy.argsort(presynaptic_cells)
+                connections = nest.GetConnections(source=presynaptic_cells,
+                                                  target=postsynaptic_cell.node_collection,
+                                                  synapse_model=self.nest_synapse_model,
+                                                  synapse_label=self.nest_synapse_label)
+                for name, value in connection_parameters.items():
+                    if name not in self._common_synapse_property_names:
+                        value = make_sli_compatible(value)
+                        #logger.debug("Setting %s=%s for connections %s" % (name, value, connections))
+                        if isinstance(value, numpy.ndarray):
+                            # the str() is to work around a bug handling unicode names in SetStatus in NEST 2.4.1 when using Python 2
+                            nest.SetStatus(connections, str(name), value.tolist())
+                        else:
+                            nest.SetStatus(connections, str(name), value)
                     else:
-                        nest.SetStatus(connections, str(name), value)
-                else:
-                    self._set_common_synapse_property(name, value)
+                        self._set_common_synapse_property(name, value)
 
     def _identify_common_synapse_properties(self):
         """

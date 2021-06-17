@@ -106,7 +106,7 @@ class SpikeDetector(RecordingDevice):
     def connect_to_cells(self):
         assert not self._connected
         if len(self._all_ids) > 0:
-            nest.Connect(nest.NodeCollection(list(self._all_ids)),
+            nest.Connect(nest.NodeCollection(sorted(self._all_ids)),
                          self.device,
                          {'rule': 'all_to_all'},
                          {'delay': simulator.state.min_delay})
@@ -145,7 +145,7 @@ class Multimeter(RecordingDevice):
         assert not self._connected
         if len(self._all_ids) > 0:
             nest.Connect(self.device,
-                         nest.NodeCollection(list(self._all_ids)),
+                         nest.NodeCollection(sorted(self._all_ids)),
                          {'rule': 'all_to_all'},
                          {'delay': simulator.state.min_delay})
         self._connected = True
