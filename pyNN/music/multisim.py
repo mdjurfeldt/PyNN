@@ -183,8 +183,8 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
             
         # Check that this_simulator supports music
         if not this_simulator.music.music_support:
-            raise RuntimeError, 'Either pyNN.' + this_backend + """ doesn\'t yet support MUSIC
-              or the simulator isn\'t installed with an enabled MUSIC interface"""
+            raise RuntimeError('Either pyNN.' + this_backend + """ doesn\'t yet support MUSIC
+              or the simulator isn\'t installed with an enabled MUSIC interface""")
             
         # Queue this projection
         pending_actions.append (self)
