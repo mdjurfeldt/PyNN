@@ -7,7 +7,7 @@ at once, provided those simulators support the MUSIC communication interface.
 :license: CeCILL, see LICENSE for details.
 """
 
-import music
+import music.config
 from pyNN.space import Space
 import warnings
 
@@ -77,16 +77,16 @@ def setup(*configurations):
     simulators = []
     
     for config in configurations:
-        application = music.Application(name = config.name, 
-                                        np = config.num_nodes,
-                                        binary = config.executable_path,
-                                        args = config.args)
+        application = music.config.Application(name = config.name, 
+                                               np = config.num_nodes,
+                                               binary = config.executable_path,
+                                               args = config.args)
         if config.name in backends:
             if application.this:
                 # Tell the MUSIC library to postpone setup until first
                 # port creation. Must make this call after
                 # specifications of Applications.
-                music.postponeSetup()
+                music.config.postponeSetup()
                 simulator = getBackend(config.name)
                 this_backend = config.name
                 simulator.name = this_backend
@@ -118,15 +118,15 @@ def run(simtime):
     #  finally setup delayed MUSIC port setup,
     # work through back-end specific eventport setup,
     # call run for backend assigned to this rank.
-    music.define ('stoptime', simtime / 1000.0) # convert to s
-    music.configure()
+    music.config.define ('stoptime', simtime / 1000.0) # convert to s
+    music.config.configure()
     
     for actor in pending_actions:
         actor.pending_action()
         
     if isinstance(this_simulator, ExternalApplication):
         # Let MUSIC launch the application
-        music.launch()
+        music.config.launch()
         # Will never get here
 
     this_simulator.run(simtime)
@@ -197,7 +197,7 @@ class Projection(object): # may wish to inherit from common.projections.Projecti
             # Make backend create an EventOutputPort and map
             # presynaptic_neurons to that port.
             this_simulator.music.music_export (self.presynaptic_neurons,
-                                         self.output_port)
+                                               self.output_port)
             self.projection = ProxyProjection()
         else:
             self.projection = this_simulator.music.MusicProjection \
@@ -237,7 +237,7 @@ class Port(object): # aka Pipe aka DataLink # other name suggestions welcome
 def connectPorts(fromSim, fromPortName, toSim, toPortName, width = None):
     fromApp = application_map[fromSim]
     toApp = application_map[toSim]
-    music.connect(fromApp, fromPortName, toApp, toPortName, width)
+    music.config.connect(fromApp, fromPortName, toApp, toPortName, width)
 
 
 output_ports = {}
