@@ -64,7 +64,7 @@ class MusicProjection(Projection):
 
         All other arguments are as for the standard Projection class.
         """
-        params = [{"port_name": port, "music_channel": c} for c in xrange(width)]
+        params = [{"port_name": port, "music_channel": c} for c in range(width)]
         pre_pop = MusicPopulation(width, MusicProxyCellType(params))
         nest.SetAcceptableLatency(port, 500.0)
         Projection.__init__(self, pre_pop, postsynaptic_population,
