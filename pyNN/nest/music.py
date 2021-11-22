@@ -41,7 +41,15 @@ class MusicPopulation(Population):
     def _create_cells(self):
         nest_model = self.celltype.nest_name[simulator.state.spike_precision]
         params = self.celltype.parameters
-        self.all_cells = nest.Create(nest_model, self.size, params=params)
+        #
+        # The following should work but doesn't in nest-2.12:
+        #
+        #   self.all_cells = nest.Create(nest_model, self.size, params=params)
+        #
+        # so we do this instead:
+        self.all_cells = nest.Create(nest_model, self.size)
+        nest.SetStatus(self.all_cells, params)
+        #
         self._mask_local = numpy.array(nest.GetStatus(self.all_cells, 'local'))
         self.all_cells = numpy.array([simulator.ID(gid) for gid in self.all_cells], simulator.ID)
         for gid in self.all_cells:
