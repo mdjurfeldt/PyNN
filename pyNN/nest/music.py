@@ -25,7 +25,7 @@ def music_export(population, port_name):
     for channel, pre in enumerate(population.all()):
         if not population.celltype.always_local or channel%n_proc == rank:  # this seems like a hack. I think NEST should take care of this.
             conn_params = {"music_channel": channel}
-            nest.Connect([pre], music_proxy, 'one_to_one', conn_params)
+            nest.Connect(nest.NodeCollection([pre]), music_proxy, 'one_to_one', conn_params)
 
 
 class MusicProxyCellType(BaseCellType):
@@ -41,19 +41,13 @@ class MusicPopulation(Population):
     def _create_cells(self):
         nest_model = self.celltype.nest_name[simulator.state.spike_precision]
         params = self.celltype.parameters
+        self.node_collection = nest.Create(nest_model, self.size, params=params)
         #
-        # The following should work but doesn't in nest-2.12:
-        #
-        #   self.all_cells = nest.Create(nest_model, self.size, params=params)
-        #
-        # so we do this instead:
-        self.all_cells = nest.Create(nest_model, self.size)
-        nest.SetStatus(self.all_cells, params)
-        #
-        self._mask_local = numpy.array(nest.GetStatus(self.all_cells, 'local'))
-        self.all_cells = numpy.array([simulator.ID(gid) for gid in self.all_cells], simulator.ID)
+        self._mask_local = numpy.array(nest.GetStatus(self.node_collection, 'local'))
+        self.all_cells = numpy.array([simulator.ID(gid) for gid in self.node_collection.tolist()], simulator.ID)
         for gid in self.all_cells:
             gid.parent = self
+            gid.node_collection = nest.NodeCollection([int(gid)])
 
 
 class MusicProjection(Projection):
