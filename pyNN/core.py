@@ -1,7 +1,7 @@
 """
 Assorted utility classes and functions.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -16,7 +16,10 @@ def is_listlike(obj):
 
     Maybe need to split into different functions, as don't always need length.
     """
-    return isinstance(obj, (list, numpy.ndarray, tuple, set))
+    return (
+        isinstance(obj, (list, tuple, set))
+        or (isinstance(obj, numpy.ndarray) and obj.ndim > 0)
+    )
 
 
 def iteritems(obj):

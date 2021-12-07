@@ -1,7 +1,7 @@
 """
 Brian implementation of the PyNN API.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -28,13 +28,15 @@ def list_standard_models():
 
 
 def setup(timestep=DEFAULT_TIMESTEP, min_delay=DEFAULT_MIN_DELAY,
-          max_delay=DEFAULT_MAX_DELAY, **extra_params):
+          **extra_params):
     """
     Should be called at the very beginning of a script.
     extra_params contains any keyword arguments that are required by a given
     simulator but not by others.
     """
-    common.setup(timestep, min_delay, max_delay, **extra_params)
+
+    max_delay = extra_params.get('max_delay', DEFAULT_MAX_DELAY)
+    common.setup(timestep, min_delay, **extra_params)
     simulator.state.clear()
     brian.set_global_preferences(**extra_params)
     simulator.state.dt = timestep  # move to common.setup?
@@ -52,7 +54,6 @@ def end(compatible_output=True):
     for (population, variables, filename) in simulator.state.write_on_end:
         io = get_io(filename)
         population.write_data(io, variables)
-    simulator.state.clear()
     simulator.state.write_on_end = []
     # should have common implementation of end()
 
