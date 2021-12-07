@@ -22,6 +22,8 @@ import ninemlcatalog
 cases = ['SR', 'SR2', 'SR3', 'SIfast', 'AI', 'SIslow']
 
 parser = argparse.ArgumentParser()
+parser.add_argument('simulator_name',
+                    help=("The simulator to use"))
 parser.add_argument('case',
                     help=("The simulation case to run, can be one of '{}'"
                           .format("', '".join(cases))))
@@ -36,7 +38,7 @@ sim.setup()
 
 if args.case not in cases:
     raise Exception("Unrecognised case '{}', allowed cases are '{}'"
-                    .format("', '".join(cases)))
+                    .format(args.case, "', '".join(cases)))
 
 document = ninemlcatalog.load('/network/Brunel2000/' + args.case)
 xml_file = document.url
@@ -88,12 +90,12 @@ def instantaneous_firing_rate(segment, begin, end):
 if args.plot:
     Figure(
         Panel(stim_data.spiketrains, markersize=0.2, xlim=args.limits),
-        Panel(exc_data.analogsignalarrays[0], yticks=True, xlim=args.limits),
-        Panel(exc_data.analogsignalarrays[1], yticks=True, xlim=args.limits),
+        Panel(exc_data.analogsignals[0], yticks=True, xlim=args.limits),
+        Panel(exc_data.analogsignals[1], yticks=True, xlim=args.limits),
         Panel(exc_data.spiketrains[:100], markersize=0.5, xlim=args.limits),
         Panel(instantaneous_firing_rate(exc_data, *args.limits), yticks=True),
-        Panel(inh_data.analogsignalarrays[0], yticks=True, xlim=args.limits),
-        Panel(inh_data.analogsignalarrays[1], yticks=True, xlim=args.limits),
+        Panel(inh_data.analogsignals[0], yticks=True, xlim=args.limits),
+        Panel(inh_data.analogsignals[1], yticks=True, xlim=args.limits),
         Panel(inh_data.spiketrains[:100], markersize=0.5, xlim=args.limits),
         Panel(instantaneous_firing_rate(inh_data, *args.limits), xticks=True,
               xlabel="Time (ms)", yticks=True),

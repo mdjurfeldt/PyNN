@@ -15,7 +15,7 @@ Attributes:
 All other functions and classes are private, and should not be used by other
 modules.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -40,25 +40,27 @@ class ID(int, common.IDMixin):
 
 
 class State(common.control.BaseState):
-    
+
     def __init__(self):
         common.control.BaseState.__init__(self)
         self.mpi_rank = 0
         self.num_processes = 1
         self.network = None
         self._min_delay = 'auto'
+        self.current_sources = []
         self.clear()
-    
+
     def run(self, simtime):
         self.running = True
         self.network.run(simtime * ms)
-        
+
     def run_until(self, tstop):
         self.run(tstop - self.t)
-        
+
     def clear(self):
         self.recorders = set([])
         self.id_counter = 0
+        self.current_sources = []
         self.segment_counter = -1
         if self.network:
             for item in self.network.groups + self.network._all_operations:
@@ -66,7 +68,7 @@ class State(common.control.BaseState):
         self.network = brian.Network()
         self.network.clock = brian.Clock()
         self.reset()
-        
+
     def reset(self):
         """Reset the state of the current network to time t = 0."""
         self.network.reinit()
@@ -77,7 +79,7 @@ class State(common.control.BaseState):
             if hasattr(group, "initialize"):
                 logger.debug("Re-initalizing %s" % group)
                 group.initialize()
-        
+
     def _get_dt(self):
         if self.network.clock is None:
             raise Exception("Simulation timestep not yet set. Need to call setup()")

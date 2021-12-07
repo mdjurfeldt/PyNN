@@ -1,7 +1,7 @@
 """
 Definition of cell classes for the brian module.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -10,6 +10,7 @@ Definition of cell classes for the brian module.
 import numpy
 import brian
 from pyNN.parameters import Sequence, simplify
+from pyNN import errors
 from . import simulator
 
 mV = brian.mV
@@ -55,6 +56,8 @@ class BaseNeuronGroup(brian.NeuronGroup):
             max_refractory = parameters["tau_refrac"].max() * ms
         else:
             max_refractory = None
+        if simulator.state.max_delay == "auto":
+            simulator.state.max_delay = 10.0
         brian.NeuronGroup.__init__(self, n,
                                    model=equations,
                                    threshold=threshold,
@@ -120,7 +123,7 @@ class AdaptiveReset(object):
 
 
 class AdaptiveNeuronGroup(BaseNeuronGroup):
-    
+
     def __init__(self, n, equations, **parameters):
         threshold = brian.SimpleFunThreshold(self.check_threshold)
         period = simplify(parameters['tau_refrac'])
@@ -198,7 +201,7 @@ class IzhikevichReset(object):
 
 
 class IzhikevichNeuronGroup(BaseNeuronGroup):
-    
+
     def __init__(self, n, equations, **parameters):
         threshold = brian.SimpleFunThreshold(self.check_threshold)
         reset = brian.SimpleCustomRefractoriness(
@@ -218,10 +221,10 @@ class IzhikevichNeuronGroup(BaseNeuronGroup):
 
     def check_threshold(self, v):
         return v >= 30 * mV
-    
+
 
 class PoissonGroup(brian.PoissonGroup):
-    
+
     def __init__(self, n, equations, **parameters):
         for name, value in parameters.items():
             setattr(self, name, value)
@@ -246,12 +249,13 @@ class PoissonGroup(brian.PoissonGroup):
 
 
 class SpikeGeneratorGroup(brian.SpikeGeneratorGroup):
-    
+
     def __init__(self, n, equations, spike_times=None):
         """
         Note that `equations` is not used: it is simply for compatibility with
         other NeuronGroup subclasses.
         """
+        self._check_spike_times(spike_times)
         spiketimes = [(i, t) for i, seq in enumerate(spike_times) for t in seq.value]
         brian.SpikeGeneratorGroup.__init__(self, n, spiketimes,
                                            clock=simulator.state.network.clock)
@@ -267,9 +271,16 @@ class SpikeGeneratorGroup(brian.SpikeGeneratorGroup):
             existing_times = self._get_spike_times()
             existing_times[mask] = spike_times
             spike_times = existing_times
+        self._check_spike_times(spike_times)
         values = [(i, t) for i, seq in enumerate(spike_times) for t in seq.value]
         brian.SpikeGeneratorGroup.__init__(self, self.N, values, period=self.period)
     spike_times = property(fget=_get_spike_times, fset=_set_spike_times)
+
+    def _check_spike_times(self, spike_times):
+        for seq in spike_times:
+            if numpy.any(seq.value[:-1] > seq.value[1:]):
+                raise errors.InvalidParameterValueError(
+                    "Spike times given to SpikeSourceArray must be in increasing order")
 
     def initialize(self):
         pass

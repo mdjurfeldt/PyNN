@@ -5,7 +5,7 @@ potential etc).
 These classes and functions are not part of the PyNN API, and are only for
 internal use.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -15,6 +15,7 @@ import numpy
 import os
 from copy import copy
 from collections import defaultdict
+from warnings import warn
 from pyNN import errors
 import neo
 from datetime import datetime
@@ -88,9 +89,9 @@ def gather_blocks(data, ordered=True):
     # for now, use gather_dict, which will probably be slow. Can optimize later
     D = {mpi_comm.rank: data}
     D = gather_dict(D)
-    blocks = D.values()
+    blocks = list(D.values())
     merged = data
-    if mpi_comm.rank == MPI_ROOT:    
+    if mpi_comm.rank == MPI_ROOT:
         merged = blocks[0]
         for block in blocks[1:]:
             merged.merge(block)
@@ -223,9 +224,7 @@ class Recorder(object):
         Add the cells in `ids` to the sets of recorded cells for the given variables.
         """
         logger.debug('Recorder.record(<%d cells>)' % len(ids))
-        if sampling_interval is not None:
-            if sampling_interval != self.sampling_interval and len(self.recorded) > 0:
-                raise ValueError("All neurons in a population must be recorded with the same sampling interval.")
+        self._check_sampling_interval(sampling_interval)
 
         ids = set([id for id in ids if id.local])
         for variable in normalize_variables_arg(variables):
@@ -234,6 +233,18 @@ class Recorder(object):
             new_ids = ids.difference(self.recorded[variable])
             self.recorded[variable] = self.recorded[variable].union(ids)
             self._record(variable, new_ids, sampling_interval)
+
+    def _check_sampling_interval(self, sampling_interval):
+        """
+        Check whether record() has been called previously with a different sampling interval
+        (we exclude recording of spikes, as the sampling interval does not apply in that case)
+        """
+        if sampling_interval is not None and sampling_interval != self.sampling_interval:
+            recorded_variables = list(self.recorded.keys())
+            if "spikes" in recorded_variables:
+                recorded_variables.remove("spikes")
+            if len(recorded_variables) > 0:
+                raise ValueError("All neurons in a population must be recorded with the same sampling interval.")
 
     def reset(self):
         """Reset the list of things to be recorded."""
@@ -256,15 +267,23 @@ class Recorder(object):
         for variable in variables_to_include:
             if variable == 'spikes':
                 t_stop = self._simulator.state.t * pq.ms  # must run on all MPI nodes
-                segment.spiketrains = [
-                    neo.SpikeTrain(self._get_spiketimes(id),
-                                   t_start=self._recording_start_time,
-                                   t_stop=t_stop,
-                                   units='ms',
-                                   source_population=self.population.label,
-                                   source_id=int(id),
-                                   source_index=self.population.id_to_index(id))
-                    for id in sorted(self.filter_recorded('spikes', filter_ids))]
+                sids = sorted(self.filter_recorded('spikes', filter_ids))
+                data = self._get_spiketimes(sids)
+
+                segment.spiketrains = []
+                for id in sids:
+                    times = pq.Quantity(data.get(int(id), []), pq.ms)
+                    if times.size > 0 and times.max() > t_stop:
+                        warn("Recorded at least one spike after t_stop")
+                        times = times[times <= t_stop]
+                    segment.spiketrains.append(
+                        neo.SpikeTrain(times,
+                                       t_start=self._recording_start_time,
+                                       t_stop=t_stop,
+                                       units='ms',
+                                       source_population=self.population.label,
+                                       source_id=int(id),source_index=self.population.id_to_index(int(id)))
+                    )
             else:
                 ids = sorted(self.filter_recorded(variable, filter_ids))
                 signal_array = self._get_all_signals(variable, ids, clear=clear)
@@ -273,22 +292,22 @@ class Recorder(object):
                 current_time = self._simulator.state.t * pq.ms
                 mpi_node = self._simulator.state.mpi_rank  # for debugging
                 if signal_array.size > 0:  # may be empty if none of the recorded cells are on this MPI node
-                    channel_indices = numpy.array([self.population.id_to_index(id) for id in ids])
                     units = self.population.find_units(variable)
                     source_ids = numpy.fromiter(ids, dtype=int)
-                    segment.analogsignalarrays.append(
-                        neo.AnalogSignalArray(
-                            signal_array,
-                            units=units,
-                            t_start=t_start,
-                            sampling_period=sampling_period,
-                            name=variable,
-                            source_population=self.population.label,
-                            channel_index=channel_indices,
-                            source_ids=source_ids)
-                    )
-                    logger.debug("%d **** ids=%s, channels=%s", mpi_node, source_ids, channel_indices)
-                    assert segment.analogsignalarrays[0].t_stop - current_time - 2 * sampling_period < 1e-10
+                    signal = neo.AnalogSignal(
+                                    signal_array,
+                                    units=units,
+                                    t_start=t_start,
+                                    sampling_period=sampling_period,
+                                    name=variable,
+                                    source_population=self.population.label,
+                                    source_ids=source_ids)
+                    signal.channel_index = neo.ChannelIndex(
+                            index=numpy.arange(source_ids.size),
+                            channel_ids=numpy.array([self.population.id_to_index(id) for id in ids]))
+                    segment.analogsignals.append(signal)
+                    logger.debug("%d **** ids=%s, channels=%s", mpi_node, source_ids, signal.channel_index)
+                    assert segment.analogsignals[0].t_stop - current_time - 2 * sampling_period < 1e-10
                     # need to add `Unit` and `RecordingChannelGroup` objects
         return segment
 
@@ -301,6 +320,10 @@ class Recorder(object):
                          for segment in self.cache]
         if self._simulator.state.running:  # reset() has not been called, so current segment is not in cache
             data.segments.append(self._get_current_segment(filter_ids=filter_ids, variables=variables, clear=clear))
+        # collect channel indexes
+        for segment in data.segments:
+            for signal in segment.analogsignals:
+                data.channel_indexes.append(signal.channel_index)
         data.name = self.population.label
         data.description = self.population.describe()
         data.rec_datetime = data.segments[0].rec_datetime

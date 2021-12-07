@@ -7,10 +7,10 @@ install and run PyNN on Windows, but this has not been tested.
 
 Installing PyNN requires:
 
-    * Python (version 2.6, 2.7, 3.3-3.6)
+    * Python (version 2.7, 3.6+)
     * a recent version of the NumPy_ package
     * the lazyarray_ package
-    * the Neo_ package
+    * the Neo_ package (>= 0.8.0)
     * at least one of the supported simulators: e.g. NEURON, NEST, or Brian.
 
 Optional dependencies are:
@@ -18,22 +18,22 @@ Optional dependencies are:
     * mpi4py_ (if you wish to run distributed simulations using MPI)
     * either Jinja2_ or Cheetah_ (templating engines)
     * the CSA_ library
+    * h5py (to use the SONATA format)
 
 Installing PyNN
 ===============
 
-.. note:: if using NEURON, it is easiest if you install NEURON *before* you install PyNN (see below).
+.. note:: if using NEURON or NEST, it is easiest if you install NEURON/NEST *before* you install PyNN (see below).
 
 The easiest way to get PyNN is to use pip_::
 
     $ pip install pyNN
 
-If you are running Debian or Ubuntu, there are :doc:`binary packages <download>`
-available. If you would prefer to install manually, :doc:`download the latest
+If you would prefer to install manually, :doc:`download the latest
 source distribution <download>`, then run the setup script, e.g.::
 
-    $ tar xzf PyNN-0.8.3.tar.gz
-    $ cd PyNN-0.8.3
+    $ tar xzf PyNN-0.9.6.tar.gz
+    $ cd PyNN-0.9.6
     $ python setup.py install
 
 This will install it to your Python :file:`site-packages` directory, and may
@@ -49,6 +49,13 @@ Test it using something like the following::
     >>> sim.end()
 
 (This assumes you have NEST installed).
+
+.. warning::
+
+   If you get a warning "Unable to install NEST extensions. Certain models may not be available" then ensure the
+   program :command:`nest-config` is on your system PATH.
+   If you still get this message even after adding the directory containing :command:`nest-config` to the PATH,
+   try ``pip uninstall PyNN``, then re-install with ``pip install --no-binary :all: PyNN``
 
 With NEURON as the simulator, make sure you install NEURON *before* you install PyNN.
 The PyNN installation will then compile PyNN-specific membrane mechanisms, which are loaded when importing the :mod:`neuron` module::
@@ -71,7 +78,7 @@ you will need to manually run :command:`nrnivmodl` in the :file:`pyNN/neuron/nmo
 Installing NEURON
 =================
 
-Download the sources for the latest release of NEURON, in ``.tar.gz`` format, from `<http://www.neuron.yale.edu/neuron/download/getstd>`_.
+Download the sources for NEURON 7.4 or later, in ``.tar.gz`` format, from `<http://www.neuron.yale.edu/neuron/download/getstd>`_.
 Also download Interviews from the same location.
 
 Compile Interviews and NEURON according to the instructions given at `<http://www.neuron.yale.edu/neuron/static/download/compilestd_unix.html>`_,
@@ -111,34 +118,21 @@ If you run into problems, check out the `NEURON Forum`_.
 Installing NEST and PyNEST
 ==========================
 
-NEST 2.12 can be downloaded from `<http://www.nest-simulator.org/download/>`_.
-Earlier versions of NEST will not work with this version of PyNN.
+NEST 2.18.0 can be downloaded from `<http://www.nest-simulator.org/download/>`_.
+Earlier versions of NEST may not work with this version of PyNN.
 The full installation instructions are available in the file INSTALL, which you can find in the NEST source package,
 or at `<http://www.nest-simulator.org/installation/>`_.
-
-.. note:: NumPy must be installed *before* installing NEST.
-
-.. note:: Make sure you have the GNU Scientific Library (GSL) installed,
-          otherwise some PyNN standard models (e.g. :class:`IF_cond_exp`) will not be available.
-
-On Linux, most Unix variants and Mac OS X, installation is usually as simple as::
-
-    $ ./configure --with-mpi
-    $ make
-    $ make install
-
-This will install PyNEST to your Python :file:`site-packages` directory.
-If you wish to install it elsewhere, see the full installation instructions.
 
 Now try it out::
 
     $ cd ~
     $ python
     >>> import nest
-                  -- N E S T --
-
+                 -- N E S T --
       Copyright (C) 2004 The NEST Initiative
-      Version 2.12.0 Mar 21 2016 21:29:37
+
+    Version: v2.20.0
+
     ...
     >>> nest.Models()
     (u'ac_generator', u'aeif_cond_alpha', u'aeif_cond_alpha_RK5', u'aeif_cond_alpha_multisynapse',

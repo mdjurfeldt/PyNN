@@ -17,7 +17,7 @@ try:
 except ImportError:
     sim = False
     h = Mock()
-    
+
 from pyNN.common import populations
 try:
     import unittest2 as unittest
@@ -82,7 +82,7 @@ class MockStepCurrentSource(object):
     def inject_into(self, cell_list):
         for cell in cell_list:
             if cell.local:
-               self._devices += [cell]
+                self._devices += [cell]
 
 
 class MockDCSource(object):
@@ -94,7 +94,7 @@ class MockDCSource(object):
     def inject_into(self, cell_list):
         for cell in cell_list:
             if cell.local:
-               self._devices += [cell]
+                self._devices += [cell]
 
 
 class MockID(int):
@@ -121,14 +121,14 @@ class MockProjection(object):
     synapse_type = MockSynapseType()
     pre = MockPopulation()
     post = MockPopulation()
-    
+
 
 @unittest.skipUnless(sim, "Requires NEURON")
 class TestFunctions(unittest.TestCase):
 
     def test_load_mechanisms(self):
         self.assertRaises(Exception, simulator.load_mechanisms, "/tmp")  # not found
-    
+
     def test_is_point_process(self):
         section = h.Section()
         clamp = h.SEClamp(section(0.5))
@@ -215,7 +215,7 @@ class TestState(unittest.TestCase):
         self.assertEqual(h.steps_per_ms, 100.0)
         self.assertEqual(simulator.state.dt, 0.01)
 
-    #def test_reset(self):
+    # def test_reset(self):
     #    simulator.state.running = True
     #    simulator.state.t = 17
     #    simulator.state.tstop = 123
@@ -228,7 +228,7 @@ class TestState(unittest.TestCase):
     #    self.assertEqual(simulator.state.tstop, 0.0)
     #    init._initialize = orig_initialize
 
-    #def test_run(self):
+    # def test_run(self):
     #    simulator.state.reset()
     #    simulator.state.run(12.3)
     #    self.assertAlmostEqual(h.t, 12.3, places=11)
@@ -283,7 +283,7 @@ class TestID(unittest.TestCase):
         foo_init = self.id.get_initial_value('foo')
         self.assertEqual(foo_init, -99.9)
 
-    #def test_set_initial_value(self):
+    # def test_set_initial_value(self):
 
 
 @unittest.skipUnless(sim, "Requires NEURON")
@@ -321,8 +321,8 @@ class TestConnection(unittest.TestCase):
         self.c._setup_plasticity(MockPlasticSynapseType(),
                                  {'wmax': 0.04,
                                   'dendritic_delay_fraction': 0})
-        self.assertEqual(self.c.w_max, 0.04)
-        self.c.w_max = 0.05
+        self.assertEqual(self.c.wmax, 0.04)
+        self.c.wmax = 0.05
         self.assertEqual(self.c.weight_adjuster.wmax, 0.05)
 
 
@@ -382,16 +382,16 @@ class TestRecorder(unittest.TestCase):
         self.rec._record('gsyn_inh', self.cells)
         self.rec._record('spikes', self.cells)
         self.assertRaises(Exception, self.rec._record, self.cells)
-    
-    #def test__get_v(self):
+
+    # def test__get_v(self):
     #    self.rv.recorded['v'] = self.cells
     #    self.cells[0]._cell.vtrace = numpy.arange(-65.0, -64.0, 0.1)
     #    self.cells[1]._cell.vtrace = numpy.arange(-64.0, -65.0, -0.1)
     #    self.cells[0]._cell.record_times = self.cells[1]._cell.record_times = numpy.arange(0.0, 1.0, 0.1)
     #    simulator.state.t = simulator.state.dt * len(self.cells[0]._cell.vtrace)
     #    vdata = self.rv._get_current_segment(variables=['v'], filter_ids=None)
-    #    self.assertEqual(len(vdata.analogsignalarrays), 1)
-    #    assert_array_equal(numpy.array(vdata.analogsignalarrays[0]),
+    #    self.assertEqual(len(vdata.analogsignals), 1)
+    #    assert_array_equal(numpy.array(vdata.analogsignals[0]),
     #                        numpy.vstack((self.cells[0]._cell.vtrace, self.cells[1]._cell.vtrace)).T)
 
     def test__get_spikes(self):
@@ -403,7 +403,7 @@ class TestRecorder(unittest.TestCase):
         self.assertEqual(len(sdata.spiketrains), 2)
         assert_array_equal(numpy.array(sdata.spiketrains[0]), self.cells[0]._cell.spike_times)
 
-    #def test__get_gsyn(self):
+    # def test__get_gsyn(self):
     #    self.rg.recorded['gsyn_exc'] = self.cells
     #    self.rg.recorded['gsyn_inh'] = self.cells
     #    for cell in self.cells:
@@ -415,10 +415,10 @@ class TestRecorder(unittest.TestCase):
     #        cell._cell.record_times = self.cells[1]._cell.record_times = numpy.arange(0.0, 1.0, 0.1)
     #    simulator.state.t = simulator.state.dt * len(cell._cell.gsyn_trace['excitatory'])
     #    gdata = self.rg._get_current_segment(variables=['gsyn_exc', 'gsyn_inh'], filter_ids=None)
-    #    self.assertEqual(len(gdata.analogsignalarrays), 2)
-    #    assert_array_equal(numpy.array(gdata.analogsignalarrays[0][:,0]),
+    #    self.assertEqual(len(gdata.analogsignals), 2)
+    #    assert_array_equal(numpy.array(gdata.analogsignals[0][:,0]),
     #                        cell._cell.gsyn_trace['excitatory'])
-    #    assert_array_equal(numpy.array(gdata.analogsignalarrays[1][:,0]),
+    #    assert_array_equal(numpy.array(gdata.analogsignals[1][:,0]),
     #                        cell._cell.gsyn_trace['inhibitory'])
     #
     def test__local_count(self):
@@ -431,7 +431,7 @@ class TestRecorder(unittest.TestCase):
 
 @unittest.skipUnless(sim, "Requires NEURON")
 class TestStandardIF(unittest.TestCase):
-    
+
     def test_create_cond_exp(self):
         cell = cells.StandardIF("conductance", "exp", tau_m=12.3, c_m=0.246, v_rest=-67.8)
         self.assertAlmostEqual(cell.area(), 1e5, places=10)  # µm²

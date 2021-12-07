@@ -2,7 +2,7 @@
 """
 Standard base_cells for the neuron module.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -289,18 +289,10 @@ class GIF_cond_exp(base_cells.GIF_cond_exp):
         ('delta_v', 'dV'),
         ('v_t_star', 'vt_star'),
         ('lambda0', 'lambda0'),
-        ('tau_eta1', 'tau_eta1'),
-        ('tau_eta2', 'tau_eta2'),
-        ('tau_eta3', 'tau_eta3'),
-        ('tau_gamma1', 'tau_gamma1'),
-        ('tau_gamma2', 'tau_gamma2'),
-        ('tau_gamma3', 'tau_gamma3'),
-        ('a_eta1', 'a_eta1'),
-        ('a_eta2', 'a_eta2'),
-        ('a_eta3', 'a_eta3'),
-        ('a_gamma1', 'a_gamma1'),
-        ('a_gamma2', 'a_gamma2'),
-        ('a_gamma3', 'a_gamma3'),
+        ('tau_eta', 'tau_eta'),
+        ('tau_gamma', 'tau_gamma'),
+        ('a_eta', 'a_eta'),
+        ('a_gamma', 'a_gamma'),
     )
     model = GIFNeuron
     extra_parameters = {'syn_type': 'conductance',

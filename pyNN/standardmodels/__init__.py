@@ -13,7 +13,7 @@ Classes:
     STDPWeightDependence
     STDPTimingDependence
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -23,6 +23,9 @@ from pyNN.parameters import ParameterSpace
 import numpy
 from pyNN.core import is_listlike, itervalues
 from copy import deepcopy
+import neo
+import quantities as pq
+
 
 # ==============================================================================
 #   Standard cells
@@ -69,9 +72,12 @@ class StandardModelType(models.BaseModelType):
         """
         return self.translate(self.parameter_space)
 
-    def translate(self, parameters):
+    def translate(self, parameters, copy=True):
         """Translate standardized model parameters to simulator-specific parameters."""
-        _parameters = deepcopy(parameters)
+        if copy:
+            _parameters = deepcopy(parameters)
+        else:
+            _parameters = parameters
         cls = self.__class__
         if parameters.schema != self.get_schema():
             raise Exception("Schemas do not match: %s != %s" % (parameters.schema, self.get_schema()))  # should replace this with a PyNN-specific exception type
@@ -180,7 +186,7 @@ class StandardCurrentSource(StandardModelType, models.BaseCurrentSource):
         else:
             object.__setattr__(self, name, value)
 
-    def set_parameters(self, **parameters):
+    def set_parameters(self, copy=True, **parameters):
         """
         Set current source parameters, given as a sequence of parameter=value arguments.
         """
@@ -195,7 +201,7 @@ class StandardCurrentSource(StandardModelType, models.BaseCurrentSource):
             parameters = all_parameters
         else:
             parameters = ParameterSpace(parameters, self.get_schema(), (1,))
-        parameters = self.translate(parameters)
+        parameters = self.translate(parameters, copy=copy)
         self.set_native_parameters(parameters)
 
     def get_parameters(self):
@@ -209,6 +215,21 @@ class StandardCurrentSource(StandardModelType, models.BaseCurrentSource):
 
     def get_native_parameters(self):
         raise NotImplementedError
+
+    def _round_timestamp(self, value, resolution):
+        # todo: consider using decimals module, since rounding of floating point numbers is so horrible
+        return numpy.rint(value/resolution) * resolution
+
+    def get_data(self):
+        """Return the recorded current as a Neo signal object"""
+        t_arr, i_arr = self._get_data()
+        intervals = numpy.diff(t_arr)
+        if intervals.size > 0 and intervals.max() - intervals.min() < 1e-9:
+            signal = neo.AnalogSignal(i_arr, units="nA", t_start=t_arr[0] * pq.ms,
+                                      sampling_period=intervals[0] * pq.ms)
+        else:
+            signal = neo.IrregularlySampledSignal(t_arr, i_arr, units="nA", time_units="ms")
+        return signal
 
 
 class ModelNotAvailable(object):
@@ -224,9 +245,10 @@ class ModelNotAvailable(object):
 
 
 def check_weights(weights, projection):
-    # if projection.post is an Assembly, some components might have cond-synapses, others curr, so need a more sophisticated check here
-    synapse_sign = projection.receptor_type
-    is_conductance = projection.post.conductance_based
+    # if projection.post is an Assembly, some components might have cond-synapses, others curr,
+    # so need a more sophisticated check here. For now, skipping check and emitting a warning
+    if hasattr(projection.post, "_homogeneous_synapses") and not projection.post._homogeneous_synapses:
+        warnings.warn("Not checking weights due to due mixture of synapse types")
     if isinstance(weights, numpy.ndarray):
         all_negative = (weights <= 0).all()
         all_positive = (weights >= 0).all()
@@ -234,15 +256,19 @@ def check_weights(weights, projection):
             raise errors.ConnectionError("Weights must be either all positive or all negative")
     elif numpy.isreal(weights):
         all_positive = weights >= 0
-        all_negative = weights < 0
+        all_negative = weights <= 0
     else:
         raise errors.ConnectionError("Weights must be a number or an array of numbers.")
-    if is_conductance or synapse_sign == 'excitatory':
+    if projection.post.conductance_based or projection.receptor_type == 'excitatory':
         if not all_positive:
-            raise errors.ConnectionError("Weights must be positive for conductance-based and/or excitatory synapses")
-    elif is_conductance is False and synapse_sign == 'inhibitory':
+            raise errors.ConnectionError(
+                "Weights must be positive for conductance-based and/or excitatory synapses"
+            )
+    elif projection.post.conductance_based is False and projection.receptor_type == 'inhibitory':
         if not all_negative:
-            raise errors.ConnectionError("Weights must be negative for current-based, inhibitory synapses")
+            raise errors.ConnectionError(
+                "Weights must be negative for current-based, inhibitory synapses"
+            )
     else:  # This should never happen.
         raise Exception("Can't check weight, conductance status unknown.")
 
@@ -265,7 +291,7 @@ def check_delays(delays, projection):
 class StandardSynapseType(StandardModelType, models.BaseSynapseType):
     parameter_checks = {
         'weight': check_weights,
-        'delay': check_delays
+        #'delay': check_delays   # this needs to be revisited in the context of min_delay = "auto"
     }
 
     def get_schema(self):

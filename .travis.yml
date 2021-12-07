@@ -1,25 +1,24 @@
 language: python
-dist: trusty
-sudo: required
+dist: bionic
 matrix:
-    include:
-        - python: 2.6
-          env: PYENV=py26
-        - python: 2.7
-          env: PYENV=py27
-        - python: 3.3
-          env: PYENV=py33
-        - python: 3.5
-          env: PYENV=py35
+  include:
+    - python: 2.7
+      env: PYENV=py27
+    - python: 3.6
+      env: PYENV=py36
+    - python: 3.7
+      env: PYENV=py37
+before_install:
+  - sudo apt-get install -y libgsl0-dev  openmpi-bin libopenmpi-dev python-dev
 install:
-    - source ci/install.sh
+  - source ci/install.sh
 script:  bash ci/test_script.sh
 after_success:
   - coveralls
 cache:
   directories:
-    - $HOME/nest-master
-    - $HOME/nrn-7.4
-    - $HOME/build/nest-master
-    - $HOME/build/nrn-7.4
+    - $HOME/nest-2.20.0
+    - $HOME/nrn-7.7
+    - $HOME/build/nest-2.20.0
+    - $HOME/build/nrn-7.7
     - $HOME/.cache/pip

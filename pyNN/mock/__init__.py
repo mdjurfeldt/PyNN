@@ -4,7 +4,7 @@ Mock implementation of the PyNN API, for testing and documentation purposes.
 This simulator implements the PyNN API, but generates random data rather than
 really running simulations.
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -29,8 +29,10 @@ def list_standard_models():
 
 
 def setup(timestep=DEFAULT_TIMESTEP, min_delay=DEFAULT_MIN_DELAY,
-          max_delay=DEFAULT_MAX_DELAY, **extra_params):
-    common.setup(timestep, min_delay, max_delay, **extra_params)
+          **extra_params):
+
+    max_delay = extra_params.get('max_delay', DEFAULT_MAX_DELAY)
+    common.setup(timestep, min_delay, **extra_params)
     simulator.state.clear()
     simulator.state.dt = timestep  # move to common.setup?
     simulator.state.min_delay = min_delay

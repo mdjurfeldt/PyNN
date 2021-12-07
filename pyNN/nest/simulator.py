@@ -16,7 +16,7 @@ All other functions and classes are private, and should not be used by other
 modules.
 
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -43,7 +43,7 @@ def nest_property(name, dtype):
     def _set(self, val):
         try:
             nest.SetKernelStatus({name: dtype(val)})
-        except nest.NESTError as e:
+        except nest.kernel.NESTError as e:
             reraise(e, "%s = %s (%s)" % (name, val, type(val)))
     return property(fget=_get, fset=_set)
 
@@ -53,10 +53,15 @@ class _State(common.control.BaseState):
 
     def __init__(self):
         super(_State, self).__init__()
+        try:
+            nest.Install('pynn_extensions')
+            self.extensions_loaded = True
+        except nest.kernel.NESTError as err:
+            self.extensions_loaded = False
         self.initialized = False
         self.optimize = False
         self.spike_precision = "off_grid"
-        self.verbosity = "warning"
+        self.verbosity = "error"
         self._cache_num_processes = nest.GetKernelStatus()['num_processes']  # avoids blocking if only some nodes call num_processes
                                                                              # do the same for rank?
         # allow NEST to erase previously written files (defaut with all the other simulators)
@@ -64,6 +69,7 @@ class _State(common.control.BaseState):
         self.tempdirs = []
         self.recording_devices = []
         self.populations = []  # needed for reset
+        self.stale_connection_cache = False
 
     @property
     def t(self):
@@ -82,9 +88,13 @@ class _State(common.control.BaseState):
         return nest.GetKernelStatus('min_delay')
 
     def set_delays(self, min_delay, max_delay):
+        # this assumes we never set max_delay without also setting min_delay
         if min_delay != 'auto':
             min_delay = float(min_delay)
-            max_delay = float(max_delay)
+            if max_delay == 'auto':
+                max_delay = 10.0
+            else:
+                max_delay = float(max_delay)
             nest.SetKernelStatus({'min_delay': min_delay,
                                   'max_delay': max_delay})
 
@@ -105,6 +115,7 @@ class _State(common.control.BaseState):
         return ogs and "off_grid" or "on_grid"
 
     def _set_spike_precision(self, precision):
+        self._spike_precision = precision
         if precision == 'off_grid':
             nest.SetKernelStatus({'off_grid_spiking': True})
             self.default_recording_precision = 15
@@ -116,7 +127,7 @@ class _State(common.control.BaseState):
     spike_precision = property(fget=_get_spike_precision, fset=_set_spike_precision)
 
     def _set_verbosity(self, verbosity):
-        nest.sli_run("M_%s setverbosity" % verbosity.upper())
+        nest.set_verbosity('M_{}'.format(verbosity.upper()))
     verbosity = property(fset=_set_verbosity)
 
     def run(self, simtime):
@@ -152,9 +163,11 @@ class _State(common.control.BaseState):
         self.recording_devices = []
         self.recorders = set()
         # clear the sli stack, if this is not done --> memory leak cause the stack increases
-        nest.sr('clear')
+        nest.ll_api.sr('clear')
         # reset the simulation kernel
         nest.ResetKernel()
+        # but this reverts some of the PyNN settings, so we have to repeat them (see NEST #716)
+        self.spike_precision = self._spike_precision
         # set tempdir
         tempdir = tempfile.mkdtemp()
         self.tempdirs.append(tempdir)  # append tempdir to tempdirs list

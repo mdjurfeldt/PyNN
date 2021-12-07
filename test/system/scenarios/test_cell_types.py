@@ -7,8 +7,11 @@ try:
     have_scipy = True
 except ImportError:
     have_scipy = False
+from numpy.testing import assert_array_equal
 import quantities as pq
-from nose.tools import assert_less
+from nose.tools import assert_greater, assert_less, assert_raises
+from pyNN.parameters import Sequence
+from pyNN.errors import InvalidParameterValueError
 
 from .registry import register
 
@@ -22,15 +25,15 @@ def test_EIF_cond_alpha_isfa_ista(sim, plot_figure=False):
     ifcell.initialize(v=-65, w=0)
     sim.run(200.0)
     data = ifcell.get_data().segments[0]
-    expected_spike_times = numpy.array([10.02, 25.52, 43.18, 63.42, 86.67, 113.13, 142.69, 174.79]) * pq.ms
+    expected_spike_times = numpy.array([10.015, 25.515, 43.168, 63.41, 86.649, 113.112, 142.663, 174.76])
     if plot_figure:
         import matplotlib.pyplot as plt
-        vm = data.analogsignalarrays[0] 
+        vm = data.filter(name="v")[0]
         plt.plot(vm.times, vm)
         plt.plot(expected_spike_times, -40 * numpy.ones_like(expected_spike_times), "ro")
         plt.savefig("test_EIF_cond_alpha_isfa_ista_%s.png" % sim.__name__)
-    diff = (data.spiketrains[0] - expected_spike_times) / expected_spike_times
-    assert abs(diff).max() < 0.01, abs(diff).max() 
+    diff = (data.spiketrains[0].rescale(pq.ms).magnitude - expected_spike_times) / expected_spike_times
+    assert abs(diff).max() < 0.01, abs(diff).max()
     sim.end()
     return data
 test_EIF_cond_alpha_isfa_ista.__test__ = False
@@ -59,13 +62,17 @@ def test_HH_cond_exp(sim, plot_figure=False):
     hhcell.record('v')
     sim.run(20.0)
     v = hhcell.get_data().segments[0].filter(name='v')[0]
+    if plot_figure:
+        import matplotlib.pyplot as plt
+        plt.plot(v.times, v)
+        plt.savefig("test_HH_cond_exp_%s.png" % sim.__name__)
     sim.end()
     first_spike = v.times[numpy.where(v > 0)[0][0]]
     assert first_spike / pq.ms - 2.95 < 0.01
 test_HH_cond_exp.__test__ = False
 
 
-@register(exclude=['nemo', 'brian'])
+@register(exclude=['nemo', 'brian', 'brian2'])  # see issue 370
 def issue367(sim, plot_figure=False):
     # AdEx dynamics for delta_T=0
     sim.setup(timestep=0.001, min_delay=0.1, max_delay=4.0)
@@ -80,7 +87,7 @@ def issue367(sim, plot_figure=False):
     # we take the average membrane potential 0.1 ms before the spike and
     # compare it to the spike threshold
     spike_times = data.spiketrains[0]
-    vm = data.analogsignalarrays[0]
+    vm = data.analogsignals[0]
     spike_bins = ((spike_times - 0.1 * pq.ms) / vm.sampling_period).magnitude.astype(int)
     vm_before_spike = vm.magnitude[spike_bins]
     if plot_figure:
@@ -147,7 +154,7 @@ def test_SpikeSourcePoisson(sim, plot_figure=False):
 test_SpikeSourcePoisson.__test__ = False
 
 
-@register(exclude=['brian'])
+@register(exclude=['brian','brian2'])
 def test_SpikeSourceGamma(sim, plot_figure=False):
     try:
         from scipy.stats import kstest
@@ -203,7 +210,7 @@ def test_SpikeSourceGamma(sim, plot_figure=False):
 test_SpikeSourceGamma.__test__ = False
 
 
-@register(exclude=['brian'])
+@register(exclude=['brian','brian2'])
 def test_SpikeSourcePoissonRefractory(sim, plot_figure=False):
     try:
         from scipy.stats import kstest
@@ -261,6 +268,34 @@ def test_SpikeSourcePoissonRefractory(sim, plot_figure=False):
 test_SpikeSourcePoissonRefractory.__test__ = False
 
 
+@register()
+def issue511(sim):
+    """Giving SpikeSourceArray an array of non-ordered spike times should produce an InvalidParameterValueError error"""
+    sim.setup()
+    celltype = sim.SpikeSourceArray(spike_times=[[2.4, 4.8, 6.6, 9.4], [3.5, 6.8, 9.6, 8.3]])
+    assert_raises(InvalidParameterValueError, sim.Population, 2, celltype)
+
+
+@register()
+def test_update_SpikeSourceArray(sim, plot_figure=False):
+    sim.setup()
+    sources = sim.Population(2, sim.SpikeSourceArray(spike_times=[]))
+    sources.record('spikes')
+    sim.run(10.0)
+    sources.set(spike_times=[
+        Sequence([12, 15, 18]),
+        Sequence([17, 19])
+    ])
+    sim.run(10.0)
+    sources.set(spike_times=[
+        Sequence([22, 25]),
+        Sequence([23, 27, 29])
+    ])
+    sim.run(10.0)
+    data = sources.get_data().segments[0].spiketrains
+    assert_array_equal(data[0].magnitude, numpy.array([12, 15, 18, 22, 25]))
+test_update_SpikeSourceArray.__test__ = False
+
 # todo: add test of Izhikevich model
 
 
@@ -275,3 +310,5 @@ if __name__ == '__main__':
     test_SpikeSourcePoisson(sim, plot_figure=args.plot_figure)
     test_SpikeSourceGamma(sim, plot_figure=args.plot_figure)
     test_SpikeSourcePoissonRefractory(sim, plot_figure=args.plot_figure)
+    issue511(sim)
+    test_update_SpikeSourceArray(sim, plot_figure=args.plot_figure)

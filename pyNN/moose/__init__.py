@@ -4,7 +4,7 @@ MOOSE implementation of the PyNN API
 
 Authors: Subhasis Ray and Andrew Davison
 
-:copyright: Copyright 2006-2016 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -30,13 +30,14 @@ logger = logging.getLogger("PyNN")
 # ==============================================================================
 
 
-def setup(timestep=0.1, min_delay=0.1, max_delay=10.0, **extra_params):
+def setup(timestep=0.1, min_delay=0.1, **extra_params):
     """
     Should be called at the very beginning of a script.
     extra_params contains any keyword arguments that are required by a given
     simulator but not by others.
     """
-    common.setup(timestep, min_delay, max_delay, **extra_params)
+    max_delay = extra_params.get('max_delay', 10.0)
+    common.setup(timestep, min_delay, **extra_params)
     simulator.state.dt = timestep
     if not os.path.exists(temporary_directory):
         os.mkdir(temporary_directory)
@@ -98,7 +99,7 @@ class Population(common.Population):
     def _create_cells(self, cellclass, cellparams, n):
         """
         Create cells in MOOSE.
-        
+
         `cellclass`  -- a PyNN standard cell or a native MOOSE model.
         `cellparams` -- a dictionary of cell parameters.
         `n`          -- the number of cells to create
@@ -161,15 +162,15 @@ class Projection(common.Projection):
         self.synapse_type = target or 'excitatory'
         assert synapse_dynamics is None, "don't yet handle synapse dynamics"
         self.synapse_model = None
-        self.connections = []        
-        
+        self.connections = []
+
         # Create connections
         method.connect(self)
-        
+
     def _divergent_connect(self, source, targets, weights, delays):
         """
         Connect a neuron to one or more other neurons with a static connection.
-        
+
         `source`  -- the ID of the pre-synaptic cell.
         `targets` -- a list/1D array of post-synaptic cell IDs, or a single ID.
         `weight`  -- a list/1D array of connection weights, or a single weight.
@@ -182,7 +183,7 @@ class Projection(common.Projection):
             raise errors.ConnectionError(errmsg)
         if not core.is_listlike(targets):
             targets = [targets]
-            
+
         weights = weights * 1000.0  # scale units
         if isinstance(weights, float):
             weights = [weights]
@@ -206,7 +207,7 @@ class Projection(common.Projection):
                 synapse_object.setWeight(index, weight)
                 synapse_object.setDelay(index, delay)
                 self.connections.append((source, target, index))
-                
+
 # ==============================================================================
 #   Low-level API for creating, connecting and recording from individual neurons
 # ==============================================================================
@@ -224,4 +225,3 @@ record_v = common.build_record('v', simulator)
 record_gsyn = common.build_record('gsyn', simulator)
 
 # ==============================================================================
-

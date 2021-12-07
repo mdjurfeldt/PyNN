@@ -32,7 +32,8 @@ class SimpleTests(unittest.TestCase):
     def setUp(self):
         self.rnglist = [random.NumpyRNG(seed=987)]
         for rng in self.rnglist:
-            rng.mpi_rank = 0; rng.num_processes = 1
+            rng.mpi_rank = 0
+            rng.num_processes = 1
         if random.have_gsl:
             self.rnglist.append(random.GSLRNG(seed=654))
         if have_nrn:
@@ -41,14 +42,17 @@ class SimpleTests(unittest.TestCase):
     def testNextNone(self):
         """Calling next() with no number argument should return a float."""
         for rng in self.rnglist:
-            self.assertIsInstance(rng.next(distribution='uniform', parameters={'low': 0, 'high': 1}), float)
+            self.assertIsInstance(rng.next(distribution='uniform',
+                                           parameters={'low': 0, 'high': 1}), float)
 
     def testNextOne(self):
         """Calling next() with n=1 should return an array."""
         for rng in self.rnglist:
             self.assertIsInstance(rng.next(1, 'uniform', {'low': 0, 'high': 1}), numpy.ndarray)
-            self.assertIsInstance(rng.next(n=1, distribution='uniform', parameters={'low': 0, 'high': 1}), numpy.ndarray)
-            self.assertEqual(rng.next(1, distribution='uniform', parameters={'low': 0, 'high': 1}).shape, (1,))
+            self.assertIsInstance(rng.next(n=1, distribution='uniform',
+                                           parameters={'low': 0, 'high': 1}), numpy.ndarray)
+            self.assertEqual(rng.next(1, distribution='uniform',
+                                      parameters={'low': 0, 'high': 1}).shape, (1,))
 
     def testNextTwoPlus(self):
         """Calling next(n=m) where m > 1 should return an array."""
@@ -82,7 +86,7 @@ class ParallelTests(unittest.TestCase):
     def tearDown(self):
         random.get_mpi_config = self.orig_mpi_config
 
-    def test_parallel_unsafe(self):
+    def test_parallel_unsafe_without_mask(self):
         for rng_type in self.rng_types:
             random.get_mpi_config = lambda: (0, 2)
             rng0 = rng_type(seed=1000, parallel_safe=False)
@@ -90,32 +94,60 @@ class ParallelTests(unittest.TestCase):
             rng1 = rng_type(seed=1000, parallel_safe=False)
             self.assertEqual(rng0.seed, 1000)
             self.assertEqual(rng1.seed, 1001)
-            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1},)
-            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1},)
-            self.assertEqual(len(draw0), 5 // 2 + 1)
-            self.assertEqual(len(draw1), 5 // 2 + 1)
+            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
+            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
+            self.assertEqual(len(draw0), 5)
+            self.assertEqual(len(draw1), 5)
             self.assertNotEqual(draw0.tolist(), draw1.tolist())
 
-    def test_parallel_safe_with_mask_local(self):
+    def test_parallel_unsafe_with_mask(self):
         for rng_type in self.rng_types:
             random.get_mpi_config = lambda: (0, 2)
-            rng0 = rng_type(seed=1000, parallel_safe=True)
+            rng0 = rng_type(seed=1000, parallel_safe=False)
             random.get_mpi_config = lambda: (1, 2)
-            rng1 = rng_type(seed=1000, parallel_safe=True)
-            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask_local=numpy.array((1, 0, 1, 0, 1), bool))
-            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask_local=numpy.array((0, 1, 0, 1, 0), bool))
+            rng1 = rng_type(seed=1000, parallel_safe=False)
+            rng_check = rng_type(seed=1000, parallel_safe=False)
+            self.assertEqual(rng0.seed, 1000)
+            self.assertEqual(rng1.seed, 1001)
+            self.assertEqual(rng_check.seed, 1001)
+            mask1 = numpy.array((1, 0, 1, 0, 1), bool)
+            mask2 = numpy.array((0, 1, 0, 1, 0), bool)
+            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask=mask1)
+            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask=mask2)
+            draw_check = rng_check.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
             self.assertEqual(len(draw0), 3)
             self.assertEqual(len(draw1), 2)
             self.assertNotEqual(draw0.tolist(), draw1.tolist())
+            self.assertNotEqual(draw1.tolist(), draw_check[mask2].tolist())
 
-    def test_parallel_safe_with_mask_local_False(self):
+    def test_parallel_safe_with_mask(self):
         for rng_type in self.rng_types:
             random.get_mpi_config = lambda: (0, 2)
             rng0 = rng_type(seed=1000, parallel_safe=True)
             random.get_mpi_config = lambda: (1, 2)
             rng1 = rng_type(seed=1000, parallel_safe=True)
-            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask_local=False)
-            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask_local=False)
+            rng_check = rng_type(seed=1000, parallel_safe=True)
+            self.assertEqual(rng0.seed, 1000)
+            self.assertEqual(rng1.seed, 1000)
+            self.assertEqual(rng_check.seed, 1000)
+            mask1 = numpy.array((1, 0, 1, 0, 1), bool)
+            mask2 = numpy.array((0, 1, 0, 1, 0), bool)
+            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask=mask1)
+            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask=mask2)
+            draw_check = rng_check.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
+            self.assertEqual(len(draw0), 3)
+            self.assertEqual(len(draw1), 2)
+            self.assertNotEqual(draw0.tolist(), draw1.tolist())
+            self.assertEqual(draw1.tolist(), draw_check[mask2].tolist())
+
+    def test_parallel_safe_without_mask(self):
+        for rng_type in self.rng_types:
+            random.get_mpi_config = lambda: (0, 2)
+            rng0 = rng_type(seed=1000, parallel_safe=True)
+            random.get_mpi_config = lambda: (1, 2)
+            rng1 = rng_type(seed=1000, parallel_safe=True)
+            draw0 = rng0.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
+            draw1 = rng1.next(5, 'uniform', {'low': 0, 'high': 1}, mask=None)
             self.assertEqual(len(draw0), 5)
             self.assertEqual(len(draw1), 5)
             self.assertEqual(draw0.tolist(), draw1.tolist())
@@ -150,7 +182,8 @@ class RandomDistributionTests(unittest.TestCase):
             self.rnglist.append(NativeRNG(seed=321))
 
     def test_uniform(self):
-        rd = random.RandomDistribution(distribution='uniform', low=-1.0, high=3.0, rng=self.rnglist[0])
+        rd = random.RandomDistribution(distribution='uniform', low=-
+                                       1.0, high=3.0, rng=self.rnglist[0])
         vals = rd.next(100)
         assert vals.min() >= -1.0
         assert vals.max() < 3.0
@@ -196,13 +229,15 @@ class RandomDistributionTests(unittest.TestCase):
             self.assertEqual(rd1.parameters, {'mu': 0.5, 'sigma': 0.2})
             self.assertEqual(rd1.rng, rng)
         self.assertRaises(ValueError, random.RandomDistribution, 'normal', (0.5,))
-        self.assertRaises(ValueError, random.RandomDistribution, 'normal', (0.5, 0.2), mu=0.5, sigma=0.2)
+        self.assertRaises(ValueError, random.RandomDistribution,
+                          'normal', (0.5, 0.2), mu=0.5, sigma=0.2)
 
     def test_max_redraws(self):
         # for certain parameterizations, clipped distributions can require a very large, possibly infinite
         # number of redraws. This should be caught.
         for rng in self.rnglist:
-            rd1 = random.RandomDistribution('normal_clipped', mu=0, sigma=1, low=5, high=numpy.inf, rng=rng)
+            rd1 = random.RandomDistribution(
+                'normal_clipped', mu=0, sigma=1, low=5, high=numpy.inf, rng=rng)
             self.assertRaises(Exception, rd1.next, 1000)
 
 
