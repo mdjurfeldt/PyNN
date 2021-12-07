@@ -2,7 +2,7 @@
 A small framework to make it easier to run the same model on multiple
 simulators.
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -53,7 +53,7 @@ class MultiSim(object):
             self.result_queues[sim.__name__] = result_queue
 
     def __iter__(self):
-        return self.processes.itervalues()
+        return self.processes.values()
 
     def __getattr__(self, name):
         """

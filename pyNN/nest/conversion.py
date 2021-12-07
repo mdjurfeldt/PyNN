@@ -1,16 +1,19 @@
+# -*- coding: utf-8 -*-
 """
-Conversion functions to nest-compatible data types.
+Conversion functions to NEST-compatible data types.
+
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
+:license: CeCILL, see LICENSE for details.
 """
 
-import numpy
+import numpy as np
 from pyNN.parameters import Sequence
-from pyNN.core import iteritems
 
 
 def make_sli_compatible_single(value):
     if isinstance(value, Sequence):
         return_value = value.value
-    elif isinstance(value, numpy.ndarray):
+    elif isinstance(value, np.ndarray):
         if value.dtype == object and isinstance(value[0], Sequence):
             # check if the shape of the array is something other than (1,)
             # to my knowledge nest cannot handle that
@@ -26,7 +29,7 @@ def make_sli_compatible_single(value):
         return_value = value
 
     # nest does not understand numpy boolean values
-    if isinstance(return_value, numpy.bool_):
+    if isinstance(return_value, np.bool_):
         return_value = bool(return_value)
 
     return return_value
@@ -48,7 +51,7 @@ def make_sli_compatible(container):
     elif isinstance(container, dict):
         compatible = {}
 
-        for k, v in iteritems(container):
+        for k, v in container.items():
             compatible[k] = make_sli_compatible_single(v)
 
     else:
@@ -59,7 +62,7 @@ def make_sli_compatible(container):
 
 def make_pynn_compatible_single(value):
     # check if parameter is non-scalar
-    if isinstance(value, numpy.ndarray):
+    if isinstance(value, np.ndarray):
         return Sequence(value)
     else:
         return value
@@ -80,11 +83,10 @@ def make_pynn_compatible(container):
     elif isinstance(container, dict):
         compatible = {}
 
-        for k, v in iteritems(container):
+        for k, v in container.items():
             compatible[k] = make_pynn_compatible_single(v)
 
     else:
         compatible = make_pynn_compatible_single(container)
 
     return compatible
-

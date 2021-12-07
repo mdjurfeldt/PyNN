@@ -12,12 +12,11 @@ Functions:
     Timer    - a convenience wrapper around the time.time() function from the
                standard library.
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
 
-from __future__ import print_function, division
 # If there is a settings.py file on the path, defaults will be
 # taken from there.
 try:
@@ -25,17 +24,14 @@ try:
 except ImportError:
     SMTPHOST = None
     EMAIL = None
-try:
-    unicode
-except NameError:
-    unicode = str
+
 import sys
 import logging
 import time
 import os
 from datetime import datetime
 import functools
-import numpy
+import numpy as np
 from importlib import import_module
 
 from pyNN.core import deprecated
@@ -222,12 +218,12 @@ def normalized_filename(root, basename, extension, simulator, num_processes=None
 def connection_plot(projection, positive='O', zero='.', empty=' ', spacer=''):
     """ """
     connection_array = projection.get('weight', format='array')
-    image = numpy.zeros_like(connection_array, dtype=unicode)
-    old_settings = numpy.seterr(invalid='ignore')  # ignore the complaint that x > 0 is invalid for NaN
+    image = np.zeros_like(connection_array, dtype=str)
+    old_settings = np.seterr(invalid='ignore')  # ignore the complaint that x > 0 is invalid for NaN
     image[connection_array > 0] = positive
     image[connection_array == 0] = zero
-    numpy.seterr(**old_settings)  # restore original floating point error settings
-    image[numpy.isnan(connection_array)] = empty
+    np.seterr(**old_settings)  # restore original floating point error settings
+    image[np.isnan(connection_array)] = empty
     return '\n'.join([spacer.join(row) for row in image])
 
 
@@ -376,22 +372,6 @@ class SimulationProgressBar(ProgressBar):
     def __call__(self, t):
         self.set_level(t / self.t_stop)
         return t + self.interval
-
-
-def assert_arrays_equal(a, b):
-    import numpy
-    assert isinstance(a, numpy.ndarray), "a is a %s" % type(a)
-    assert isinstance(b, numpy.ndarray), "b is a %s" % type(b)
-    assert a.shape == b.shape, "%s != %s" % (a, b)
-    assert (a.flatten() == b.flatten()).all(), "%s != %s" % (a, b)
-
-
-def assert_arrays_almost_equal(a, b, threshold):
-    import numpy
-    assert isinstance(a, numpy.ndarray), "a is a %s" % type(a)
-    assert isinstance(b, numpy.ndarray), "b is a %s" % type(b)
-    assert a.shape == b.shape, "%s != %s" % (a, b)
-    assert (abs(a - b) < threshold).all(), "max(|a - b|) = %s" % (abs(a - b)).max()
 
 
 def sort_by_column(a, col):

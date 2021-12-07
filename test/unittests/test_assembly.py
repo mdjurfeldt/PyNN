@@ -2,15 +2,12 @@
 Tests of the common implementation of the Assembly class, using the pyNN.mock
 backend.
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
-import numpy
+import unittest
+import numpy as np
 import sys
 import quantities as pq
 from numpy.testing import assert_array_equal, assert_array_almost_equal
@@ -18,10 +15,6 @@ try:
     from unittest.mock import Mock, patch
 except ImportError:
     from mock import Mock, patch
-try:
-    basestring
-except NameError:
-    basestring = str
 from .mocks import MockRNG
 import pyNN.mock as sim
 from pyNN.parameters import Sequence
@@ -46,13 +39,13 @@ class AssemblyTest(unittest.TestCase):
     def test_create_with_zero_populations(self, sim=sim):
         a = sim.Assembly()
         self.assertEqual(a.populations, [])
-        self.assertIsInstance(a.label, basestring)
+        self.assertIsInstance(a.label, str)
 
     def test_create_with_one_population(self, sim=sim):
         p = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p)
         self.assertEqual(a.populations, [p])
-        self.assertIsInstance(a.label, basestring)
+        self.assertIsInstance(a.label, str)
 
     def test_create_with_two_populations(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
@@ -74,7 +67,7 @@ class AssemblyTest(unittest.TestCase):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
-        assert_array_equal(a.positions, numpy.concatenate((p1.positions, p2.positions), axis=1))
+        assert_array_equal(a.positions, np.concatenate((p1.positions, p2.positions), axis=1))
 
     def test__len__(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
@@ -86,13 +79,13 @@ class AssemblyTest(unittest.TestCase):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
-        assert_array_equal(a.local_cells, numpy.append(p1.local_cells, p2.local_cells))
+        assert_array_equal(a.local_cells, np.append(p1.local_cells, p2.local_cells))
 
     def test_all_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2, label="test")
-        assert_array_equal(a.all_cells, numpy.append(p1.all_cells, p2.all_cells))
+        assert_array_equal(a.all_cells, np.append(p1.all_cells, p2.all_cells))
 
     def test_iter(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
@@ -153,7 +146,7 @@ class AssemblyTest(unittest.TestCase):
         p1 = sim.Population(11, sim.IF_cond_exp())
         p2 = sim.Population(11, sim.IF_cond_exp())
         a = sim.Assembly(p1, p2)
-        self.assertIsInstance(a.describe(), basestring)
+        self.assertIsInstance(a.describe(), str)
         self.assertIsInstance(a.describe(template=None), dict)
 
     def test_get_population(self, sim=sim):
@@ -175,7 +168,7 @@ class AssemblyTest(unittest.TestCase):
                          p1.all_cells.size + p2.all_cells.size + p3.all_cells.size)
         self.assertEqual(a.all_cells[0], p1.all_cells[0])
         self.assertEqual(a.all_cells[-1], p3.all_cells[-1])
-        assert_array_equal(a.all_cells, numpy.append(p1.all_cells, (p2.all_cells, p3.all_cells)))
+        assert_array_equal(a.all_cells, np.append(p1.all_cells, (p2.all_cells, p3.all_cells)))
 
     def test_local_cells(self, sim=sim):
         p1 = sim.Population(11, sim.IF_cond_exp())
@@ -186,7 +179,7 @@ class AssemblyTest(unittest.TestCase):
                          p1.local_cells.size + p2.local_cells.size + p3.local_cells.size)
         self.assertEqual(a.local_cells[0], p1.local_cells[0])
         self.assertEqual(a.local_cells[-1], p3.local_cells[-1])
-        assert_array_equal(a.local_cells, numpy.append(
+        assert_array_equal(a.local_cells, np.append(
             p1.local_cells, (p2.local_cells, p3.local_cells)))
 
     def test_mask_local(self, sim=sim):
@@ -198,7 +191,7 @@ class AssemblyTest(unittest.TestCase):
                          p1._mask_local.size + p2._mask_local.size + p3._mask_local.size)
         self.assertEqual(a._mask_local[0], p1._mask_local[0])
         self.assertEqual(a._mask_local[-1], p3._mask_local[-1])
-        assert_array_equal(a._mask_local, numpy.append(
+        assert_array_equal(a._mask_local, np.append(
             p1._mask_local, (p2._mask_local, p3._mask_local)))
         assert_array_equal(a.local_cells, a.all_cells[a._mask_local])
 
@@ -206,13 +199,13 @@ class AssemblyTest(unittest.TestCase):
         import os
         p1 = sim.Population(2, sim.IF_cond_exp())
         p2 = sim.Population(2, sim.IF_cond_exp())
-        p1.positions = numpy.arange(0, 6).reshape((2, 3)).T
-        p2.positions = numpy.arange(6, 12).reshape((2, 3)).T
+        p1.positions = np.arange(0, 6).reshape((2, 3)).T
+        p2.positions = np.arange(6, 12).reshape((2, 3)).T
         a = sim.Assembly(p1, p2, label="test")
         output_file = Mock()
         a.save_positions(output_file)
         assert_array_equal(output_file.write.call_args[0][0],
-                           numpy.array([[0, 0, 1, 2],
+                           np.array([[0, 0, 1, 2],
                                         [1, 3, 4, 5],
                                         [2, 6, 7, 8],
                                         [3, 9, 10, 11]]))
@@ -341,8 +334,8 @@ class AssemblyTest(unittest.TestCase):
         a1 = a.sample(10, rng=MockRNG())
         # MockRNG.permutation reverses the order
         self.assertEqual(len(a1.populations), 2)
-        assert_array_equal(a1.populations[0].all_cells, p1[11:6:-1])
-        assert_array_equal(a1.populations[1].all_cells, p2[6::-1])
+        assert_array_equal(a1.populations[0].all_cells, sorted(p1[11:6:-1]))
+        assert_array_equal(a1.populations[1].all_cells, sorted(p2[6::-1]))
 
     def test_get_data_with_gather(self, sim=sim):
         t1 = 12.3
@@ -384,7 +377,7 @@ class AssemblyTest(unittest.TestCase):
         self.assertEqual(v.t_start, 0.0)
         self.assertEqual(len(seg1.spiketrains), a.size)
         # assert_array_equal(seg1.spiketrains[7],
-        #                   numpy.array([a.first_id+7, a.first_id+7+5]) % t3)
+        #                   np.array([a.first_id+7, a.first_id+7+5]) % t3)
 
     def test_printSpikes(self, sim=sim):
         # TODO: implement assert_deprecated
@@ -465,7 +458,7 @@ class AssemblyTest(unittest.TestCase):
         tau_syn_E = a.get('tau_syn_E', gather=True)
         self.assertAlmostEqual(tau_syn_E, 0.987, places=6)
         tau_m = a.get('tau_m', gather=True)
-        assert_array_equal(tau_m, numpy.array([12.3, 12.3, 12.3, 12.3, 23.4, 23.4, 23.4]))
+        assert_array_equal(tau_m, np.array([12.3, 12.3, 12.3, 12.3, 23.4, 23.4, 23.4]))
 
     def test_get_multiple_inhomogeneous_params_with_gather(self, sim=sim):
         p1 = sim.Population(4, sim.IF_cond_exp(tau_m=12.3,
@@ -477,11 +470,11 @@ class AssemblyTest(unittest.TestCase):
         a = p1 + p2
         tau_syn_E, tau_m, tau_syn_I = a.get(('tau_syn_E', 'tau_m', 'tau_syn_I'), gather=True)
         self.assertIsInstance(tau_m, float)
-        self.assertIsInstance(tau_syn_E, numpy.ndarray)
-        assert_array_equal(tau_syn_E, numpy.array(
+        self.assertIsInstance(tau_syn_E, np.ndarray)
+        assert_array_equal(tau_syn_E, np.array(
             [0.987, 0.988, 0.989, 0.990, 0.991, 0.992, 0.993]))
         self.assertAlmostEqual(tau_m, 12.3)
-        assert_array_almost_equal(tau_syn_I, numpy.array(
+        assert_array_almost_equal(tau_syn_I, np.array(
             [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]), decimal=12)
 
     def test_get_multiple_params_no_gather(self, sim=sim):
@@ -496,10 +489,10 @@ class AssemblyTest(unittest.TestCase):
         a = p1 + p2
         tau_syn_E, tau_m, i_offset = a.get(('tau_syn_E', 'tau_m', 'i_offset'), gather=False)
         self.assertIsInstance(tau_m, float)
-        self.assertIsInstance(tau_syn_E, numpy.ndarray)
-        assert_array_equal(tau_syn_E, numpy.array([0.988, 0.990, 0.992]))
+        self.assertIsInstance(tau_syn_E, np.ndarray)
+        assert_array_equal(tau_syn_E, np.array([0.988, 0.990, 0.992]))
         self.assertEqual(tau_m, 12.3)
-        assert_array_almost_equal(i_offset, numpy.array([-0.2, -0.6, -1.0, ]), decimal=12)
+        assert_array_almost_equal(i_offset, np.array([-0.2, -0.6, -1.0, ]), decimal=12)
         sim.simulator.state.num_processes = 1
         sim.simulator.state.mpi_rank = 0
 

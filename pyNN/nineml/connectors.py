@@ -1,14 +1,14 @@
 """
 Export of PyNN scripts as NineML.
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
 import nineml.user as nineml
 
 from pyNN import connectors
-from utility import build_parameter_set, catalog_url
+from .utility import build_parameter_set, catalog_url
 
 
 class ConnectorMixin(object):
@@ -18,10 +18,10 @@ class ConnectorMixin(object):
         for name in self.__class__.parameter_names:
             connector_parameters[name] = getattr(self, name)
         connection_rule = nineml.ConnectionRuleComponent(
-                                    name="connection rule for projection %s" % label,
-                                    definition=nineml.Definition(self.definition_url,
-                                                                 "connection_generator"),
-                                    parameters=build_parameter_set(connector_parameters))
+            name="connection rule for projection %s" % label,
+            definition=nineml.Definition(self.definition_url,
+                                         "connection_generator"),
+            parameters=build_parameter_set(connector_parameters))
         return connection_rule
 
 

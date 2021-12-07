@@ -13,7 +13,7 @@ Classes:
 """
 
 import logging
-import numpy
+import numpy as np
 import brian2
 from brian2 import ms, second, nA, amp, Hz, NetworkOperation, amp as ampere
 from pyNN.standardmodels import electrodes, build_translations, StandardCurrentSource
@@ -21,6 +21,7 @@ from pyNN.parameters import ParameterSpace, Sequence
 from pyNN.brian2 import simulator
 
 logger = logging.getLogger("PyNN")
+
 
 def update_currents():
     for current_source in simulator.state.current_sources:
@@ -34,6 +35,7 @@ class Brian2CurrentSource(StandardCurrentSource):
         super(StandardCurrentSource, self).__init__(**parameters)
         self.cell_list = []
         self.indices = []
+        self.prev_amp_dict = {}
         self.running = False
         simulator.state.current_sources.append(self)
         parameter_space = ParameterSpace(self.default_parameters,
@@ -50,8 +52,8 @@ class Brian2CurrentSource(StandardCurrentSource):
         if not (times >= 0.0).all():
             raise ValueError("Step current cannot accept negative timestamps.")
         # ensure that times provided are of strictly increasing magnitudes
-        dt_times = numpy.diff(times)
-        if not all(dt_times>0.0):
+        dt_times = np.diff(times)
+        if not all(dt_times > 0.0):
             raise ValueError("Step current timestamps should be monotonically increasing.")
         # map timestamps to actual simulation time instants based on specified dt
         times = self._round_timestamp(times, resolution)
@@ -69,10 +71,11 @@ class Brian2CurrentSource(StandardCurrentSource):
     def set_native_parameters(self, parameters):
         parameters.evaluate(simplify=True)
         for name, value in parameters.items():
-            if name == "amplitudes": # key used only by StepCurrentSource
+            if name == "amplitudes":  # key used only by StepCurrentSource
                 step_times = parameters["times"].value
                 step_amplitudes = parameters["amplitudes"].value
-                step_times, step_amplitudes = self._check_step_times(step_times, step_amplitudes, simulator.state.dt)
+                step_times, step_amplitudes = self._check_step_times(
+                    step_times, step_amplitudes, simulator.state.dt)
                 parameters["times"].value = step_times
                 parameters["amplitudes"].value = step_amplitudes
             if isinstance(value, Sequence):
@@ -94,7 +97,6 @@ class Brian2CurrentSource(StandardCurrentSource):
             if not cell.celltype.injectable:
                 raise TypeError("Can't inject current into a spike source.")
         self.cell_list.extend(cell_list)
-        self.prev_amp_dict = {}
         for cell in cell_list:
             cell_idx = cell.parent.id_to_index(cell)
             self.indices.extend([cell_idx])
@@ -105,13 +107,15 @@ class Brian2CurrentSource(StandardCurrentSource):
         if self.running and abs(simulator.state.t - self.times[self.i] * 1e3) < (simulator.state.dt/2.0):
             for cell, idx in zip(self.cell_list, self.indices):
                 if not self._is_playable:
-                    cell.parent.brian2_group.i_inj[idx] += (self.amplitudes[self.i] - self.prev_amp_dict[idx]) * ampere
+                    cell.parent.brian2_group.i_inj[idx] += (
+                        self.amplitudes[self.i] - self.prev_amp_dict[idx]) * ampere
                     self.prev_amp_dict[idx] = self.amplitudes[self.i]
                 else:
                     amp_val = self._compute(self.times[self.i])
-                    self.amplitudes = numpy.append(self.amplitudes, amp_val)
-                    cell.parent.brian2_group.i_inj[idx] += (amp_val - self.prev_amp_dict[idx]) * ampere
-                    self.prev_amp_dict[idx] = amp_val #* ampere
+                    self.amplitudes = np.append(self.amplitudes, amp_val)
+                    cell.parent.brian2_group.i_inj[idx] += (amp_val -
+                                                            self.prev_amp_dict[idx]) * ampere
+                    self.prev_amp_dict[idx] = amp_val  # * ampere
             self.i += 1
             if self.i >= len(self.times):
                 self.running = False
@@ -125,12 +129,12 @@ class Brian2CurrentSource(StandardCurrentSource):
 
     def _get_data(self):
         def find_nearest(array, value):
-            array = numpy.asarray(array)
-            return (numpy.abs(array - value)).argmin()
+            array = np.asarray(array)
+            return (np.abs(array - value)).argmin()
 
         len_t = int(round((simulator.state.t * 1e-3) / (simulator.state.dt * 1e-3))) + 1
-        times = numpy.array([(i * simulator.state.dt * 1e-3) for i in range(len_t)])
-        amps = numpy.array([0.0] * len_t)
+        times = np.array([(i * simulator.state.dt * 1e-3) for i in range(len_t)])
+        amps = np.array([0.0] * len_t)
 
         for idx, [t1, t2] in enumerate(zip(self.times, self.times[1:])):
             if t2 < simulator.state.t * 1e-3:
@@ -146,6 +150,7 @@ class Brian2CurrentSource(StandardCurrentSource):
                     amps[idx1:] = [self.amplitudes[idx]] * len(amps[idx1:])
                 break
         return (times * second / ms, amps * amp / nA)
+
 
 class StepCurrentSource(Brian2CurrentSource, electrodes.StepCurrentSource):
     __doc__ = electrodes.StepCurrentSource.__doc__
@@ -178,13 +183,15 @@ class ACSource(Brian2CurrentSource, electrodes.ACSource):
 
     def _generate(self):
         # Note: Brian2 uses seconds as unit of time
-        temp_num_t = int(round(((self.stop + simulator.state.dt * 1e-3) - self.start) / (simulator.state.dt * 1e-3)))
-        self.times = numpy.array([self.start + (i * simulator.state.dt * 1e-3) for i in range(temp_num_t)])
-        self.amplitudes = numpy.zeros(0)
+        temp_num_t = int(round(((self.stop + simulator.state.dt * 1e-3) -
+                                self.start) / (simulator.state.dt * 1e-3)))
+        self.times = np.array([self.start + (i * simulator.state.dt * 1e-3)
+                                  for i in range(temp_num_t)])
+        self.amplitudes = np.zeros(0)
 
     def _compute(self, time):
         # Note: Brian2 uses seconds as unit of time; frequency is specified in Hz; thus no conversion required
-        return self.offset + self.amplitude * numpy.sin((time-self.start) * 2 * numpy.pi * self.frequency + 2 * numpy.pi * self.phase / 360)
+        return self.offset + self.amplitude * np.sin((time-self.start) * 2 * np.pi * self.frequency + 2 * np.pi * self.phase / 360)
 
 
 class DCSource(Brian2CurrentSource, electrodes.DCSource):
@@ -213,7 +220,7 @@ class DCSource(Brian2CurrentSource, electrodes.DCSource):
         if self.start < simulator.state.t*1e-3 < self.stop:
             self.times.insert(-1, simulator.state.t*1e-3)
             self.amplitudes.insert(-1, self.amplitude)
-            if (self.start==0 and self.i==2) or (self.start!=0 and self.i==3):
+            if (self.start == 0 and self.i == 2) or (self.start != 0 and self.i == 3):
                 self.i -= 1
 
 
@@ -236,9 +243,10 @@ class NoisyCurrentSource(Brian2CurrentSource, electrodes.NoisyCurrentSource):
 
     def _generate(self):
         temp_num_t = int(round((self.stop - self.start) / max(self.dt, simulator.state.dt * 1e-3)))
-        self.times = numpy.array([self.start + (i * max(self.dt, simulator.state.dt * 1e-3)) for i in range(temp_num_t)])
-        self.times = numpy.append(self.times, self.stop)
-        self.amplitudes = numpy.zeros(0)
+        self.times = np.array(
+            [self.start + (i * max(self.dt, simulator.state.dt * 1e-3)) for i in range(temp_num_t)])
+        self.times = np.append(self.times, self.stop)
+        self.amplitudes = np.zeros(0)
 
     def _compute(self, time):
-        return self.mean + self.stdev * numpy.random.randn()
+        return self.mean + self.stdev * np.random.randn()

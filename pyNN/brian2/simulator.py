@@ -22,9 +22,9 @@ modules.
 
 import logging
 import brian2
-import numpy
+import numpy as np
 from pyNN import common
-from pyNN.parameters import  simplify
+from pyNN.parameters import simplify
 
 
 name = "Brian2"
@@ -94,7 +94,7 @@ class State(common.control.BaseState):
 
     def _set_dt(self, timestep):
         logger.debug("Setting timestep to %s", timestep)
-        #if self.network.clock is None or timestep != self._get_dt():
+        # if self.network.clock is None or timestep != self._get_dt():
         #    self.network.clock = brian2.Clock(dt=timestep*ms)
         self.network.clock.dt = timestep * ms
     dt = property(fget=_get_dt, fset=_set_dt)
@@ -105,12 +105,12 @@ class State(common.control.BaseState):
 
     def _get_min_delay(self):
         if self._min_delay == 'auto':
-            min_delay = numpy.inf
+            min_delay = np.inf
             for item in self.network.sorted_objects:
                 if isinstance(item, brian2.Synapses):
-                    matrix=numpy.asarray(item.delay) *10000
+                    matrix = np.asarray(item.delay) * 10000
                     min_delay = min(min_delay, matrix.min())
-            if numpy.isinf(min_delay):
+            if np.isinf(min_delay):
                 self._min_delay = self.dt
             else:
                 self._min_delay = min_delay * self.dt  # Synapses.delay is an integer, the number of time steps
@@ -119,5 +119,6 @@ class State(common.control.BaseState):
     def _set_min_delay(self, delay):
         self._min_delay = delay
     min_delay = property(fget=_get_min_delay, fset=_set_min_delay)
+
 
 state = State()

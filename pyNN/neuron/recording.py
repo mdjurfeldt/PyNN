@@ -1,17 +1,18 @@
 """
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
-import numpy
+import numpy as np
 from pyNN import recording
 from pyNN.neuron import simulator
 import re
 from neuron import h
 
 
-recordable_pattern = re.compile(r'((?P<section>\w+)(\((?P<location>[-+]?[0-9]*\.?[0-9]+)\))?\.)?(?P<var>\w+)')
+recordable_pattern = re.compile(
+    r'((?P<section>\w+)(\((?P<location>[-+]?[0-9]*\.?[0-9]+)\))?\.)?(?P<var>\w+)')
 
 
 class Recorder(recording.Recorder):
@@ -95,29 +96,29 @@ class Recorder(recording.Recorder):
             else:
                 id._cell.clear_past_spikes()
 
-    def _get_spiketimes(self, id):
+    def _get_spiketimes(self, id, clear=False):
         if hasattr(id, "__len__"):
             all_spiketimes = {}
             for cell_id in id:
                 if cell_id._cell.rec is None:  # SpikeSourceArray
                     spikes = cell_id._cell.get_recorded_spike_times()
                 else:
-                    spikes = numpy.array(cell_id._cell.spike_times)
+                    spikes = np.array(cell_id._cell.spike_times)
                 all_spiketimes[cell_id] = spikes[spikes <= simulator.state.t + 1e-9]
             return all_spiketimes
         else:
-            spikes = numpy.array(id._cell.spike_times)
+            spikes = np.array(id._cell.spike_times)
             return spikes[spikes <= simulator.state.t + 1e-9]
 
     def _get_all_signals(self, variable, ids, clear=False):
         # assuming not using cvode, otherwise need to get times as well and use IrregularlySampledAnalogSignal
         if len(ids) > 0:
-            signals = numpy.vstack((id._cell.traces[variable] for id in ids)).T
-            expected_length = numpy.rint(simulator.state.tstop / self.sampling_interval) + 1
+            signals = np.vstack([id._cell.traces[variable] for id in ids]).T
+            expected_length = np.rint(simulator.state.tstop / self.sampling_interval) + 1
             if signals.shape[0] != expected_length:  # generally due to floating point/rounding issues
-                signals = numpy.vstack((signals, signals[-1, :]))
+                signals = np.vstack((signals, signals[-1, :]))
         else:
-            signals = numpy.array([])
+            signals = np.array([])
         return signals
 
     def _local_count(self, variable, filter_ids=None):

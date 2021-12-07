@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 Definition of NativeSynapseType class for NEST
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -58,11 +59,13 @@ class NESTSynapseMixin(object):
     def _set_tau_minus(self, cells):
         if len(cells) > 0 and self.has_parameter('tau_minus'):
             native_parameters = self.native_parameters
-            if not native_parameters["tau_minus"].is_homogeneous:  # could allow inhomogeneous values as long as each column is internally homogeneous
-                raise ValueError("pyNN.NEST does not support tau_minus being different for different synapses")
+            # could allow inhomogeneous values as long as each column is internally homogeneous
+            if not native_parameters["tau_minus"].is_homogeneous:
+                raise ValueError(
+                    "pyNN.NEST does not support tau_minus being different for different synapses")
             native_parameters.shape = (1,)
             tau_minus = native_parameters["tau_minus"].evaluate(simplify=True)
-            nest.SetStatus(cells.tolist(), [{'tau_minus': tau_minus}])
+            nest.SetStatus(cells, {'tau_minus': tau_minus})
 
 
 class NativeSynapseType(BaseSynapseType, NESTSynapseMixin):

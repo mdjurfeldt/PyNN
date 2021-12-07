@@ -15,19 +15,15 @@ Attributes:
 All other functions and classes are private, and should not be used by other
 modules.
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
 
-try:
-    xrange
-except NameError:
-    xrange = range
 from pyNN import __path__ as pyNN_path
 from pyNN import common
 import logging
-import numpy
+import numpy as np
 import os.path
 # Temporary kludge:
 # Do some magic (hoc.so needs to be loaded into global name space
@@ -94,8 +90,8 @@ def nativeRNG_pick(n, rng, distribution='uniform', parameters=[0, 1]):
     """
     native_rng = h.Random(0 or rng.seed)
     rarr = [getattr(native_rng, distribution)(*parameters)]
-    rarr.extend([native_rng.repick() for j in xrange(n - 1)])
-    return numpy.array(rarr)
+    rarr.extend([native_rng.repick() for j in range(n - 1)])
+    return np.array(rarr)
 
 
 def h_property(name):

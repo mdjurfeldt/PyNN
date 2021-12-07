@@ -1,7 +1,7 @@
 """
 Standard cells for nest
 
-:copyright: Copyright 2006-2020 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 
 """
@@ -152,7 +152,7 @@ class HH_cond_exp(cells.HH_cond_exp):
     __doc__ = cells.HH_cond_exp.__doc__
 
     translations = build_translations(
-        ('gbar_Na',    'g_Na',  1000.0), # uS --> nS
+        ('gbar_Na',    'g_Na',  1000.0),  # uS --> nS
         ('gbar_K',     'g_K',   1000.0),
         ('g_leak',     'g_L',   1000.0),
         ('cm',         'C_m',   1000.0),  # nF --> pF
@@ -219,7 +219,8 @@ class SpikeSourcePoisson(cells.SpikeSourcePoisson):
 def unsupported(parameter_name, valid_value):
     def error_if_invalid(**parameters):
         if parameters[parameter_name].base_value != valid_value:
-            raise NotImplementedError("The `{}` parameter is not supported in NEST".format(parameter_name))
+            raise NotImplementedError(
+                "The `{}` parameter is not supported in NEST".format(parameter_name))
         return valid_value
     return error_if_invalid
 
@@ -277,6 +278,7 @@ class SpikeSourceInhGamma(cells.SpikeSourceInhGamma):
     nest_name = {"on_grid": 'inh_gamma_generator',
                  "off_grid":  'inh_gamma_generator'}
     always_local = True
+    uses_parrot = True
     extra_parameters = {
         'origin': 1.0
     }

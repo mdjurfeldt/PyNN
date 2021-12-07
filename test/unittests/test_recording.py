@@ -1,14 +1,11 @@
-from pyNN import recording, errors
-from nose.tools import assert_equal, assert_raises
-try:
-    from unittest.mock import Mock
-except ImportError:
-    from mock import Mock
-import numpy
-import os
+
 from datetime import datetime
 from collections import defaultdict
-from pyNN.utility import assert_arrays_equal
+from unittest.mock import Mock
+from nose.tools import assert_equal, assert_raises
+
+from pyNN import recording, errors
+
 
 # def test_rename_existing():
 
@@ -16,9 +13,9 @@ from pyNN.utility import assert_arrays_equal
 #import time
 # for x in range(7):
 #    N = pow(10, x)
-#    local_data = numpy.empty((N,2))
-#    local_data[:,0] = numpy.ones(N, dtype=float)*comm.rank
-#    local_data[:,1] = numpy.random.rand(N)
+#    local_data = np.empty((N,2))
+#    local_data[:,0] = np.ones(N, dtype=float)*comm.rank
+#    local_data[:,1] = np.random.rand(N)
 #
 #    start_time = time.time()
 #    all_data = gather(local_data)

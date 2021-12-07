@@ -3,13 +3,7 @@
 try:
     from setuptools import setup
     from setuptools.command.build_py import build_py as _build
-    from setuptools import version
-    if version.__version__ > '20.5':
-        tests_req = ['mpi4py', 'scipy;python_version>="3.4"',
-                     'matplotlib;python_version>="3.4"', 'Cheetah3',
-                     'h5py']
-    else:
-        tests_req = ['mpi4py', 'Cheetah3']
+    tests_req = ["mpi4py", "scipy", "matplotlib", "Cheetah3", "h5py"]
 except ImportError:
     from distutils.core import setup
     from distutils.command.build_py import build_py as _build
@@ -23,9 +17,8 @@ def run_command(path, working_directory):
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          universal_newlines=True,
                          cwd=working_directory)
-    result = p.wait()
-    stdout = p.stdout.readlines()
-    return result, stdout
+    stdout, stderr = p.communicate()
+    return p.returncode, stdout.split("\n")
 
 
 class build(_build):
@@ -66,7 +59,8 @@ class build(_build):
                     print("Unable to compile NEST extensions. Output was:")
                     print('  '.join([''] + stdout))
                 else:
-                    result, stdout = run_command("make install", nest_build_dir)  # should really move this to install stage
+                    # should really move this to install stage
+                    result, stdout = run_command("make install", nest_build_dir)
                     if result != 0:
                         print("Unable to install NEST extensions. Output was:")
                         print('  '.join([''] + stdout))
@@ -87,13 +81,13 @@ class build(_build):
 
 setup(
     name="PyNN",
-    version="0.9.6",
+    version="0.10.1.dev",
     packages=['pyNN', 'pyNN.nest', 'pyNN.neuron',
-              'pyNN.brian', 'pyNN.brian2', 'pyNN.common', 'pyNN.mock', 'pyNN.neuroml',
+              'pyNN.brian2', 'pyNN.common', 'pyNN.mock', 'pyNN.neuroml',
               'pyNN.recording', 'pyNN.standardmodels', 'pyNN.descriptions',
               'pyNN.music',
               'pyNN.nest.standardmodels', 'pyNN.neuroml.standardmodels',
-              'pyNN.neuron.standardmodels', 'pyNN.brian.standardmodels',
+              'pyNN.neuron.standardmodels',
               'pyNN.brian2.standardmodels', 'pyNN.utility', 'pyNN.nineml',
               'pyNN.serialization'],
     package_data={'pyNN': ['neuron/nmodl/*.mod',
@@ -107,7 +101,7 @@ setup(
     description="A Python package for simulator-independent specification of neuronal network models",
     long_description=open("README.rst").read(),
     license="CeCILL http://www.cecill.info",
-    keywords="computational neuroscience simulation neuron nest brian neuromorphic",
+    keywords="computational neuroscience simulation neuron nest brian2 neuromorphic",
     url="http://neuralensemble.org/PyNN/",
     classifiers=['Development Status :: 4 - Beta',
                  'Environment :: Console',
@@ -115,15 +109,13 @@ setup(
                  'License :: Other/Proprietary License',
                  'Natural Language :: English',
                  'Operating System :: OS Independent',
-                 'Programming Language :: Python :: 2',
-                 'Programming Language :: Python :: 2.7',
                  'Programming Language :: Python :: 3',
-                 'Programming Language :: Python :: 3.6',
                  'Programming Language :: Python :: 3.7',
                  'Programming Language :: Python :: 3.8',
+                 'Programming Language :: Python :: 3.9',
                  'Topic :: Scientific/Engineering'],
     cmdclass={'build_py': build},
-    install_requires=['numpy>=1.13.0', 'lazyarray>=0.3.4', 'neo>=0.8.0',
+    install_requires=['numpy>=1.16.1', 'lazyarray>=0.5.0', 'neo>=0.10.0',
                       'quantities>=0.12.1'],
     extras_require={
         'examples': ['matplotlib', 'scipy'],

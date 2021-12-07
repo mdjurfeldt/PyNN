@@ -6,7 +6,7 @@
 import logging
 from itertools import chain
 from collections import defaultdict
-import numpy
+import numpy as np
 import brian2
 from brian2 import uS, nA, mV, ms, second
 from pyNN import common
@@ -43,7 +43,8 @@ class Connection(common.Connection):
         return ps[attr_name]
 
     def _set(self, attr_name, value):
-        ps = ParameterSpace({attr_name: value}, shape=(1,), schema=self.projection.synapse_type.get_schema())
+        ps = ParameterSpace({attr_name: value}, shape=(
+            1,), schema=self.projection.synapse_type.get_schema())
         native_ps = self.projection.synapse_type.translate(ps)
         native_ps.evaluate()
         getattr(self._syn_obj, attr_name)[self.index] = native_ps[attr_name]
@@ -123,7 +124,8 @@ class Projection(common.Projection):
                 else:
                     post_eqns = None
 
-                model = self.synapse_type.eqs % equation_context # units are being transformed for exemple from amp to A
+                #  units are being transformed for exemple from amp to A
+                model = self.synapse_type.eqs % equation_context
 
                 # create the brian2 Synapses object.
                 syn_obj = brian2.Synapses(pre.brian2_group, post.brian2_group,
@@ -131,7 +133,7 @@ class Projection(common.Projection):
                                           on_post=post_eqns,
                                           clock=simulator.state.network.clock,
                                           multisynaptic_index='synapse_number')
-                                          #code_namespace={"exp": numpy.exp})
+                # code_namespace={"exp": np.exp})
                 self._brian2_synapses[i][j] = syn_obj
                 simulator.state.network.add(syn_obj)
         # connect the populations
@@ -160,12 +162,14 @@ class Projection(common.Projection):
         partition indices, in case of Assemblies
         """
         if isinstance(self.pre, common.Assembly):
-            boundaries = numpy.cumsum([0] + [p.size for p in self.pre.populations])
+            boundaries = np.cumsum([0] + [p.size for p in self.pre.populations])
             assert indices.max() < boundaries[-1]
-            partitions = numpy.split(indices, numpy.searchsorted(indices, boundaries[1:-1])) - boundaries[:-1]
+            partitions = np.split(indices, np.searchsorted(
+                indices, boundaries[1:-1])) - boundaries[:-1]
             for i_group, local_indices in enumerate(partitions):
                 if isinstance(self.pre.populations[i_group], common.PopulationView):
-                    partitions[i_group] = self.pre.populations[i_group].index_in_grandparent(local_indices)
+                    partitions[i_group] = self.pre.populations[i_group].index_in_grandparent(
+                        local_indices)
         elif isinstance(self.pre, common.PopulationView):
             partitions = [self.pre.index_in_grandparent(indices)]
         else:
@@ -175,8 +179,8 @@ class Projection(common.Projection):
     def _localize_index(self, index):
         """determine which group the postsynaptic index belongs to """
         if isinstance(self.post, common.Assembly):
-            boundaries = numpy.cumsum([0] + [p.size for p in self.post.populations])
-            j = numpy.searchsorted(boundaries, index, side='right') - 1
+            boundaries = np.cumsum([0] + [p.size for p in self.post.populations])
+            j = np.searchsorted(boundaries, index, side='right') - 1
             local_index = index - boundaries[j]
             if isinstance(self.post.populations[j], common.PopulationView):
                 return j, self.post.populations[j].index_in_grandparent(local_index)
@@ -195,7 +199,7 @@ class Projection(common.Projection):
         # specify which connections exist
         for i_group, i in enumerate(presynaptic_index_partitions):
             if i.size > 0:
-                self._brian2_synapses[i_group][j_group].connect(i=i, j=j) #####"[i, j]
+                self._brian2_synapses[i_group][j_group].connect(i=i, j=j)  # "[i, j]
                 self._n_connections += i.size
         # set connection parameters
 
@@ -204,7 +208,7 @@ class Projection(common.Projection):
             if name == 'delay':
                 scale = self._simulator.state.dt * ms
                 value /= scale                         # ensure delays are rounded to the
-                value = numpy.round(value) * scale     # nearest time step, rather than truncated
+                value = np.round(value) * scale     # nearest time step, rather than truncated
             for i_group, i in enumerate(presynaptic_index_partitions):
                 if i.size > 0:
                     brian2_var = getattr(self._brian2_synapses[i_group][j_group], name)
@@ -217,10 +221,11 @@ class Projection(common.Projection):
                                 brian2_var[ii, j] = value
                             except TypeError as err:
                                 if "read-only" in str(err):
-                                    logger.info("Cannot set synaptic initial value for variable {}".format(name))
+                                    logger.info(
+                                        "Cannot set synaptic initial value for variable {}".format(name))
                                 else:
                                     raise
-                    ##brian2_var[i, j] = value  # doesn't work with multiple connections between a given neuron pair. Need to understand the internals of Synapses and SynapticVariable better
+                    # brian2_var[i, j] = value  # doesn't work with multiple connections between a given neuron pair. Need to understand the internals of Synapses and SynapticVariable better
 
     def _set_attributes(self, connection_parameters):
         if isinstance(self.post, common.Assembly) or isinstance(self.pre, common.Assembly):
@@ -236,27 +241,28 @@ class Projection(common.Projection):
             raise NotImplementedError
         values = []
         syn_obj = self._brian2_synapses[0][0]
-        nan_mask = numpy.full((self.pre.size, self.post.size), True)
+        nan_mask = np.full((self.pre.size, self.post.size), True)
         iarr, jarr = syn_obj.i[:], syn_obj.j[:]
         nan_mask[iarr, jarr] = False
 
         multi_synapse_aggregation_map = {
-            'sum': (numpy.add.at, 0.0),
-            'min': (numpy.minimum.at, numpy.inf),
-            'max': (numpy.maximum.at, -numpy.inf)
+            'sum': (np.add.at, 0.0),
+            'min': (np.minimum.at, np.inf),
+            'max': (np.maximum.at, -np.inf)
         }
 
         for name in attribute_names:
             value = getattr(syn_obj, name)[:]
-            native_ps = ParameterSpace({name: value}, shape=value.shape)  # should really use the translated name
+            # should really use the translated name
+            native_ps = ParameterSpace({name: value}, shape=value.shape)
             ps = self.synapse_type.reverse_translate(native_ps)
             ps.evaluate()
 
             if multiple_synapses in multi_synapse_aggregation_map:
                 aggregation_func, dummy_val = multi_synapse_aggregation_map[multiple_synapses]
-                array_val = numpy.full((self.pre.size, self.post.size), dummy_val)
+                array_val = np.full((self.pre.size, self.post.size), dummy_val)
                 aggregation_func(array_val, (syn_obj.i[:], syn_obj.j[:]), ps[name])
-                array_val[nan_mask] = numpy.nan
+                array_val[nan_mask] = np.nan
             else:
                 raise NotImplementedError
             values.append(array_val)
@@ -269,24 +275,25 @@ class Projection(common.Projection):
         syn_obj = self._brian2_synapses[0][0]
         for name in attribute_names:
             if name == "presynaptic_index":
-                value = syn_obj.i[:]  #_indices.synaptic_pre.get_value()
+                value = syn_obj.i[:]  # _indices.synaptic_pre.get_value()
                 if hasattr(self.pre, "parent"):
                     # map index in parent onto index in view
                     value = self.pre.index_from_parent_index(value)
             elif name == "postsynaptic_index":
-                value = syn_obj.j[:]  #_indices.synaptic_post.get_value()
+                value = syn_obj.j[:]  # _indices.synaptic_post.get_value()
                 if hasattr(self.post, "parent"):
                     # map index in parent onto index in view
                     value = self.post.index_from_parent_index(value)
             else:
                 value = getattr(syn_obj, name)[:]
-                native_ps = ParameterSpace({name: value}, shape=value.shape)  # should really use the translated name
+                # should really use the translated name
+                native_ps = ParameterSpace({name: value}, shape=value.shape)
                 # this whole "get attributes" thing needs refactoring in all backends to properly use translation
                 ps = self.synapse_type.reverse_translate(native_ps)
                 ps.evaluate()
                 value = ps[name]
             values.append(value)
-        a = numpy.array(values)
+        a = np.array(values)
 
         return [tuple(x) for x in a.T]
 
@@ -294,4 +301,5 @@ class Projection(common.Projection):
         if isinstance(self.post, common.Assembly) or isinstance(self.pre, common.Assembly):
             raise NotImplementedError
         tau_syn_var = self.synapse_type.tau_syn_var[self.receptor_type]
-        self._brian2_synapses[0][0].tau_syn = self.post.get(tau_syn_var)[self._brian2_synapses[0][0].j] * brian2.ms
+        self._brian2_synapses[0][0].tau_syn = self.post.get(
+            tau_syn_var)[self._brian2_synapses[0][0].j] * brian2.ms

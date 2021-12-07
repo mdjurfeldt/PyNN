@@ -1,9 +1,9 @@
+
+
 from nose.plugins.skip import SkipTest
-from .scenarios.registry import registry
 from nose.tools import assert_equal, assert_not_equal, assert_raises
-from pyNN.utility import init_logging, assert_arrays_equal
-from pyNN.random import RandomDistribution
-import numpy
+import numpy as np
+from numpy.testing import assert_array_equal
 
 try:
     import pyNN.nest
@@ -11,11 +11,9 @@ try:
 except ImportError:
     have_nest = False
 
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
-from numpy.testing import assert_array_equal, assert_array_almost_equal
+from .scenarios.registry import registry
+from pyNN.utility import init_logging
+from pyNN.random import RandomDistribution
 
 
 def test_scenarios():
@@ -43,7 +41,7 @@ def test_record_native_model():
     p1 = nest.Population(n_cells, nest.native_cell_type("ht_neuron")(**parameters))
     p1.initialize(V_m=-70.0, Theta=-50.0)
     p1.set(theta_eq=-51.5)
-    #assert_arrays_equal(p1.get('theta_eq'), -51.5*numpy.ones((10,)))
+    #assert_array_equal(p1.get('theta_eq'), -51.5*np.ones((10,)))
     assert_equal(p1.get('theta_eq'), -51.5)
     print(p1.get('tau_m'))
     p1.set(tau_m=RandomDistribution('uniform', low=15.0, high=20.0))
@@ -105,7 +103,8 @@ def test_ticket240():
     p2 = nest.Population(5, nest.native_cell_type("ht_neuron")(**parameters))
     conn = nest.AllToAllConnector()
     syn = nest.StaticSynapse(weight=1.0)
-    prj = nest.Projection(p1, p2, conn, syn, receptor_type='AMPA')  # This should be a nonstandard receptor type but I don't know of one to use.
+    # This should be a nonstandard receptor type but I don't know of one to use.
+    prj = nest.Projection(p1, p2, conn, syn, receptor_type='AMPA')
     connections = prj.get(('weight',), format='list')
     assert len(connections) > 0
 
@@ -151,7 +150,8 @@ def test_issue237():
     exc_noise_in_exc = sim.Population(n_exc, sim.SpikeSourcePoisson, {'rate': 1000.})
     exc_cells = sim.Population(n_exc, sim.IF_cond_exp())
     exc_noise_connector = sim.OneToOneConnector()
-    noise_ee_prj = sim.Projection(exc_noise_in_exc, exc_cells, exc_noise_connector, receptor_type="excitatory")
+    noise_ee_prj = sim.Projection(exc_noise_in_exc, exc_cells,
+                                  exc_noise_connector, receptor_type="excitatory")
     noise_ee_prj.set(weight=1e-3)
 
 
@@ -161,7 +161,7 @@ def test_random_seeds():
     sim = pyNN.nest
     data = []
     for seed in (854947309, 470924491):
-        sim.setup(threads=1, rng_seeds=[seed])
+        sim.setup(threads=1, rng_seed=seed)
         p = sim.Population(3, sim.SpikeSourcePoisson(rate=100.0))
         p.record('spikes')
         sim.run(100)
@@ -175,8 +175,9 @@ def test_tsodyks_markram_synapse():
     import nest
     sim = pyNN.nest
     sim.setup()
-    spike_source = sim.Population(1, sim.SpikeSourceArray(spike_times=numpy.arange(10, 100, 10)))
-    neurons = sim.Population(5, sim.IF_cond_exp(e_rev_I=-75, tau_syn_I=numpy.arange(0.2, 0.7, 0.1)))
+    spike_source = sim.Population(1, sim.SpikeSourceArray(spike_times=np.arange(10, 100, 10)))
+    neurons = sim.Population(5, sim.IF_cond_exp(
+        e_rev_I=-75, tau_syn_I=np.arange(0.2, 0.7, 0.1)))
     synapse_type = sim.TsodyksMarkramSynapse(U=0.04, tau_rec=100.0,
                                              tau_facil=1000.0, weight=0.01,
                                              delay=0.5)
@@ -186,9 +187,10 @@ def test_tsodyks_markram_synapse():
                          synapse_type=synapse_type)
     neurons.record('gsyn_inh')
     sim.run(100.0)
-    connections = nest.GetConnections(numpy.unique(prj._sources).tolist(), synapse_model=prj.nest_synapse_model)
-    tau_psc = numpy.array(nest.GetStatus(connections, 'tau_psc'))
-    assert_arrays_equal(tau_psc, numpy.arange(0.2, 0.7, 0.1))
+    connections = nest.GetConnections(nest.NodeCollection(list(prj._sources)),
+                                      synapse_model=prj.nest_synapse_model)
+    tau_psc = np.array(nest.GetStatus(connections, 'tau_psc'))
+    assert_array_equal(tau_psc, np.arange(0.2, 0.7, 0.1))
 
 
 def test_native_electrode_types():
@@ -199,7 +201,8 @@ def test_native_electrode_types():
     dt = 0.1
     sim.setup(timestep=0.1, min_delay=0.1)
     current_sources = [sim.DCSource(amplitude=0.5, start=50.0, stop=400.0),
-                       sim.native_electrode_type('dc_generator')(amplitude=500.0, start=50.0 - dt, stop=400.0 - dt),
+                       sim.native_electrode_type('dc_generator')(
+                           amplitude=500.0, start=50.0 - dt, stop=400.0 - dt),
                        sim.StepCurrentSource(times=[50.0, 210.0, 250.0, 410.0],
                                              amplitudes=[0.4, 0.6, -0.2, 0.2]),
                        sim.native_electrode_type('step_current_generator')(
@@ -245,7 +248,7 @@ def test_issue529():
     p1 = sim.Population(10, iaf_neuron(tau_m=20.0, tau_syn_ex=3., tau_syn_in=3.))
     p2 = sim.Population(10, iaf_neuron(tau_m=20.0, tau_syn_ex=3., tau_syn_in=3.))
 
-    nest.SetStatus(list(p2), [{'tau_minus': 20.}])
+    nest.SetStatus(p2.node_collection, {'tau_minus': 20.})
 
     stdp = sim.native_synapse_type("stdp_synapse_hom")(**{
         'lambda': 0.005,
@@ -256,7 +259,7 @@ def test_issue529():
         'Wmax': 10.,
     })
 
-    W = numpy.random.rand(5)
+    W = np.random.rand(5)
 
     connections = [
         (0, 0, W[0]),
@@ -268,7 +271,8 @@ def test_issue529():
 
     ee_connector = sim.FromListConnector(connections, column_names=["weight"])
 
-    prj_plastic = sim.Projection(p1, p2, ee_connector, receptor_type='excitatory', synapse_type=stdp)
+    prj_plastic = sim.Projection(
+        p1, p2, ee_connector, receptor_type='excitatory', synapse_type=stdp)
 
 
 def test_issue662a():
@@ -284,10 +288,10 @@ def test_issue662a():
 
     syn = sim.STDPMechanism(
         timing_dependence=sim.SpikePairRule(
-            A_plus = 0.2,
-            A_minus = 0.1,
-            tau_minus = RandomDistribution('uniform', (20,40)),
-            tau_plus = RandomDistribution('uniform', (10,20))
+            A_plus=0.2,
+            A_minus=0.1,
+            tau_minus=RandomDistribution('uniform', (20, 40)),
+            tau_plus=RandomDistribution('uniform', (10, 20))
         ),
         weight_dependence=sim.AdditiveWeightDependence(w_min=0.0, w_max=0.01)
     )
@@ -309,10 +313,10 @@ def test_issue662b():
 
     syn = sim.STDPMechanism(
         timing_dependence=sim.SpikePairRule(
-            A_plus = 0.2,
-            A_minus = 0.1,
-            tau_minus = 30,
-            tau_plus = RandomDistribution('uniform', (10,20))
+            A_plus=0.2,
+            A_minus=0.1,
+            tau_minus=30,
+            tau_plus=RandomDistribution('uniform', (10, 20))
         ),
         weight_dependence=sim.AdditiveWeightDependence(w_min=0.0, w_max=0.01),
         weight=0.005
@@ -322,9 +326,9 @@ def test_issue662b():
                                  synapse_type=syn,
                                  receptor_type='inhibitory')
 
-    connections.set(tau_minus=25)  #RandomDistribution('uniform', (20,40)))
+    connections.set(tau_minus=25)  # RandomDistribution('uniform', (20,40)))
     # todo: check this worked
-    assert_raises(ValueError, connections.set, tau_minus=RandomDistribution('uniform', (20,40)))
+    assert_raises(ValueError, connections.set, tau_minus=RandomDistribution('uniform', (20, 40)))
 
 
 if __name__ == '__main__':
