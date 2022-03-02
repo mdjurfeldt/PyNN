@@ -68,7 +68,7 @@ class MusicProjection(Projection):
         """
         params = [{"port_name": port, "music_channel": c} for c in range(width)]
         pre_pop = MusicPopulation(width, MusicProxyCellType(params))
-        nest.SetAcceptableLatency(port, 500.0)
+        nest.SetAcceptableLatency(port, 0.0)
         Projection.__init__(self, pre_pop, postsynaptic_population,
                             connector, synapse_type, source=source,
                             receptor_type=receptor_type, space=space,
