@@ -11,14 +11,14 @@ from __future__ import absolute_import
 
 import sys, os
 try:
-    import music
+    import music.config
 except ImportError:
     pass
 else:
-    if music.predictRank() >= 0:
+    if music.config.predictRank() >= 0:
         # launched by MPI
         os.environ['NEURON_INIT_MPI'] = '1'
-        music.supersedeArgv(['music'] + sys.argv)
+        music.config.supersedeArgv(['music'] + sys.argv)
 
 import warnings
 try:
