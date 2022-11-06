@@ -169,7 +169,7 @@ class MusicProjection(Projection):
                 MusicConnection(self, pre_idx, postsynaptic_index, **parameters)
 
 
-def find_libnrnmpi():
+def find_libnrniv():
     found = False
     for path in os.getenv('PATH').split(osp.pathsep):
         if osp.exists(osp.join(path, "nrnivmodl")):
@@ -177,19 +177,19 @@ def find_libnrnmpi():
             break
     if found:
         real_path = osp.split(osp.realpath(osp.join(path, "nrnivmodl")))[0]
-        candidate_lib_path = osp.join(real_path, osp.pardir, "lib", "libnrnmpi.so")
+        candidate_lib_path = osp.join(real_path, osp.pardir, "lib", "libnrniv.so")
         if osp.exists:
             return ctypes.CDLL(candidate_lib_path)
         else:
-            raise Exception("Couldn't find libnrnmpi.so")
+            raise Exception("Couldn't find libnrniv.so")
     else:
         raise Exception("Couldn't find nrnivmodl")
 
 
 if music_support:
-    libnrnmpi = find_libnrnmpi()
+    libnrniv = find_libnrniv()
 
 
 def music_end ():
     if music_support:
-        libnrnmpi.nrnmpi_terminate ()
+        libnrniv.nrnmpi_terminate ()
