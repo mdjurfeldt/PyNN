@@ -56,7 +56,7 @@ VERBATIM
 #include<math.h>
 
 double nrn_random_pick(void* r);
-void* nrn_random_arg(int argpos);
+Rand* nrn_random_arg(int argpos);
 ENDVERBATIM
 
 ASSIGNED {
@@ -208,7 +208,7 @@ ENDVERBATIM
             : independent of nhost or which host this instance is on
             : is desired, since each instance on this cpu draws from
             : the same stream
-            value = scop_random(1)
+            value = scop_random()
 VERBATIM
         }
 ENDVERBATIM

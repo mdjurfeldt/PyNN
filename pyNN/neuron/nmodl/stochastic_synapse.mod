@@ -22,7 +22,7 @@ VERBATIM
 #include<math.h>
 
 double nrn_random_pick(void* r);
-void* nrn_random_arg(int argpos);
+Rand* nrn_random_arg(int argpos);
 
 ENDVERBATIM
 
@@ -68,7 +68,7 @@ VERBATIM
             return value;
         } else {
 ENDVERBATIM
-            value = scop_random(1)
+            value = scop_random()
 VERBATIM
         }
 ENDVERBATIM

@@ -110,7 +110,7 @@ VERBATIM
             return value;
         } else {
 ENDVERBATIM
-            value = scop_random(1)
+            value = scop_random()
 VERBATIM
         }
 ENDVERBATIM
