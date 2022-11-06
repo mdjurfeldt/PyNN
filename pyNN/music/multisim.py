@@ -237,7 +237,7 @@ class Port(object): # aka Pipe aka DataLink # other name suggestions welcome
 def connectPorts(fromSim, fromPortName, toSim, toPortName, width = None):
     fromApp = application_map[fromSim]
     toApp = application_map[toSim]
-    music.config.connect(fromApp, fromPortName, toApp, toPortName, width)
+    music.config.connect(fromApp, fromPortName, toApp, toPortName, width, commAlgName = 'point-to-point')
 
 
 output_ports = {}
