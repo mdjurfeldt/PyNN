@@ -296,11 +296,11 @@ class ParameterSpace(object):
                     raise errors.NonExistentParameterError(name,
                                                            model_name,
                                                            valid_parameter_names=self.schema.keys())
-                if issubclass(expected_dtype, ArrayParameter) and isinstance(value, collections.Sized):
+                if issubclass(expected_dtype, ArrayParameter) and isinstance(value, collections.abc.Sized):
                     if len(value) == 0:
                         value = ArrayParameter([])
                     elif not isinstance(value[0], ArrayParameter):  # may be a more generic way to do it, but for now this special-casing seems like the most robust approach
-                        if isinstance(value[0], collections.Sized):  # e.g. list of tuples
+                        if isinstance(value[0], collections.abc.Sized):  # e.g. list of tuples
                             value = type(value)([ArrayParameter(x) for x in value])
                         else:
                             value = ArrayParameter(value)
