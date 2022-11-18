@@ -2,7 +2,7 @@
 """
 NEST v3 implementation of the PyNN API.
 
-:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2022 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -306,7 +306,7 @@ class Projection(common.Projection):
                         if name in self._common_synapse_property_names:
                             self._set_common_synapse_property(name, value)
 
-            except nest.kernel.NESTError as e:
+            except nest.NESTError as e:
                 errmsg = "%s. presynaptic_cells=%s, postsynaptic_cell=%s, weights=%s, delays=%s, synapse model='%s'" % (
                     e, presynaptic_cells, postsynaptic_cell,
                     weights, delays, self.nest_synapse_model)

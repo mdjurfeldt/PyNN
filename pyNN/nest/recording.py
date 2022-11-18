@@ -2,7 +2,7 @@
 """
 NEST v3 implementation of the PyNN API.
 
-:copyright: Copyright 2006-2021 by the PyNN team, see AUTHORS.
+:copyright: Copyright 2006-2022 by the PyNN team, see AUTHORS.
 :license: CeCILL, see LICENSE for details.
 """
 
@@ -27,8 +27,8 @@ def _set_status(obj, parameters):
     """Wrapper around nest.SetStatus() to add a more informative error message."""
     try:
         nest.SetStatus(obj, parameters)
-    except nest.kernel.NESTError as e:
-        raise nest.kernel.NESTError("%s. Parameter dictionary was: %s" % (e, parameters))
+    except nest.NESTError as e:
+        raise nest.NESTError("%s. Parameter dictionary was: %s" % (e, parameters))
 
 
 class RecordingDevice(object):
@@ -51,10 +51,9 @@ class RecordingDevice(object):
         assert not self._connected
         self._all_ids = self._all_ids.union(new_ids)
 
-    def get_data(self, variable, desired_ids, clear=False):
+    def _get_data_arrays(self, variable, clear=False):
         """
-        Return recorded data as a dictionary containing one numpy array for
-        each neuron, ids as keys.
+        Return recorded data as pair of NumPy arrays: ids and values.
         """
         scale_factor = SCALE_FACTORS.get(variable, 1)
         nest_variable = VARIABLE_MAP.get(variable, variable)
@@ -64,7 +63,8 @@ class RecordingDevice(object):
         if variable == "times":
             values = times
         else:
-            # I'm hoping numpy optimises for the case where scale_factor = 1, otherwise should avoid this multiplication in that case
+            # I'm hoping numpy optimises for the case where scale_factor = 1,
+            # otherwise should avoid this multiplication in that case
             values = events[nest_variable] * scale_factor
 
         valid_times_index = times <= simulator.state.t
@@ -84,6 +84,14 @@ class RecordingDevice(object):
         else:
             ids = ids[valid_times_index]
             values = values[valid_times_index]
+        return ids, values
+
+    def get_data(self, variable, desired_ids, clear=False):
+        """
+        Return recorded data as a dictionary containing one numpy array for
+        each neuron, ids as keys.
+        """
+        ids, values = self._get_data_arrays(variable, clear=clear)
 
         data = {}
         recorded_ids = set(ids)
@@ -149,7 +157,11 @@ class SpikeDetector(RecordingDevice):
 
         Equivalent to `get_data('times', desired_ids)`
         """
-        return self.get_data('times', desired_ids, clear=clear)
+        id_array, times_array = self._get_data_arrays("times", clear=clear)
+        recorded_ids = np.unique(id_array)
+        desired_and_existing_ids = np.intersect1d(recorded_ids, np.array(desired_ids))
+        mask = np.in1d(id_array, desired_and_existing_ids)
+        return id_array[mask], times_array[mask]
 
     def get_spike_counts(self, desired_ids):
         events = nest.GetStatus(self.device, 'events')[0]
@@ -258,16 +270,16 @@ class Recorder(recording.Recorder):
         self._spike_detector = SpikeDetector()
 
     def _get_spiketimes(self, ids, clear=False):
-        # hugely inefficient - to be optimized later
         return self._spike_detector.get_spiketimes(ids, clear=clear)
 
     def _get_all_signals(self, variable, ids, clear=False):
         data = self._multimeter.get_data(variable, ids, clear=clear)
+        times = None
         if len(ids) > 0:
             # JACOMMENT: this is very expensive but not sure how to get rid of it
-            return np.array([data[i] for i in ids]).T
+            return np.array([data[i] for i in ids]).T, times
         else:
-            return np.array([])
+            return np.array([]), times
 
     def _local_count(self, variable, filter_ids):
         assert variable == 'spikes'
